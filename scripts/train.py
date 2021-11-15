@@ -43,6 +43,9 @@ class IKDModel(pl.LightningModule):
 
         self.loss = torch.nn.SmoothL1Loss()
 
+    def forward(self, x):
+        return self.trunk(x)
+
     def training_step(self, batch, batch_idx):
         odom, joystick, accel, gyro, _ = batch
         input = torch.cat((odom, accel, gyro), dim=1)
