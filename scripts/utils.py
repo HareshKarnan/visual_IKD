@@ -3,6 +3,8 @@ import cv2
 from tqdm import tqdm
 from termcolor import cprint
 import rosbag
+import random
+from PIL import Image, ImageOps, ImageFilter
 
 
 def parse_bag_with_img(bagfile_path, topics_to_read=None, max_time=None):
@@ -116,11 +118,16 @@ def process_joystick_data(data, config):
 
 def process_trackingcam_data(data):
     for i in range(len(data['odom'])):
-        data_pt = data['odom'][i].twist.twist
-        x_vel = data_pt.linear.x
-        y_vel = data_pt.linear.y
-        angular_vel = data_pt.angular.z
-        data['odom'][i] = [x_vel, y_vel, angular_vel]
+        twist = data['odom'][i].twist.twist
+        pose = data['odom'][i].pose.pose
+        x_vel = twist.linear.x
+        y_vel = twist.linear.y
+        angular_vel = twist.angular.z
+        x_pos = pose.orientation.x
+        y_pos = pose.orientation.y
+        z_pos = pose.orientation.z
+        w_pos = pose.orientation.w
+        data['odom'][i] = [x_vel, y_vel, angular_vel, x_pos, y_pos, z_pos, w_pos]
     data['odom'] = np.asarray(data['odom'])
     return data
 
@@ -133,3 +140,14 @@ def process_accel_gyro_data(data):
     data['accel'] = np.asarray(data['accel'])
     data['gyro'] = np.asarray(data['gyro'])
     return data
+
+class GaussianBlur(object):
+    def __init__(self, p):
+        self.p = p
+
+    def __call__(self, img):
+        if random.random() < self.p:
+            sigma = random.random() * 1.9 + 0.1
+            return img.filter(ImageFilter.GaussianBlur(sigma))
+        else:
+            return img

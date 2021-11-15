@@ -32,9 +32,9 @@ def callback(odom, image):
 
     R_imu_world = R.from_quat(orientation_quat)
     R_imu_world = R_imu_world.as_euler('xyz', degrees=True)
-    R_imu_world[0] = 0.5
-    R_imu_world[1] = 0.
-    # R_imu_world[0], R_imu_world[1] = R_imu_world[0], -R_imu_world[1]
+    # R_imu_world[0] = 0.5
+    # R_imu_world[1] = 0.
+    R_imu_world[0], R_imu_world[1] = R_imu_world[0], -R_imu_world[1]
     R_imu_world[2] = 0.
 
     R_imu_world = R_imu_world
