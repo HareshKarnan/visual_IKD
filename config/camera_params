@@ -1,0 +1,23 @@
+---
+header:
+  seq: 81
+  stamp:
+    secs: 1635205601
+    nsecs: 284170982
+  frame_id: "webcam_optical_frame"
+height: 720
+width: 1280
+distortion_model: "plumb_bob"
+D: [0.0, 0.0, 0.0, 0.0, 0.0]
+K: [640.0, 0.0, 640.0, 0.0, 360.0, 360.0, 0.0, 0.0, 1.0]
+R: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+P: [640.0, 0.0, 640.0, 0.0, 0.0, 360.0, 360.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+binning_x: 0
+binning_y: 0
+roi:
+  x_offset: 0
+  y_offset: 0
+  height: 0
+  width: 0
+  do_rectify: False
+---
