@@ -14,9 +14,15 @@ from torchvision.transforms.functional import crop
 from scripts.utils import GaussianBlur
 import cv2
 from scipy.spatial.transform import Rotation as R
+from scripts.quaternion import *
+import torch.nn.functional as F
 
 def croppatchinfront(image):
     return crop(image, 890, 584, 56, 100)
+
+class L2Normalize(nn.Module):
+    def forward(self, x):
+        return F.normalize(x, p=2, dim=1) # L2 normalize
 
 from scripts.utils import \
     parse_bag_with_img, \
@@ -25,17 +31,40 @@ from scripts.utils import \
     process_trackingcam_data, \
     process_accel_gyro_data
 
-class IKDModel(pl.LightningModule):
+
+class VisualIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=64):
-        super(IKDModel, self).__init__()
+        super(VisualIKDNet, self).__init__()
+        self.flatten = nn.Flatten()
+
+        self.visual_encoder = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, stride=2), nn.PReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=2), nn.PReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2), nn.PReLU(),
+            nn.Conv2d(64, 128, kernel_size=3, stride=2), nn.PReLU(),
+            nn.Conv2d(128, 256, kernel_size=3, stride=2), nn.PReLU(),
+            self.flatten,
+            nn.Linear(256*3*3, 128), nn.PReLU(),
+            nn.Linear(128, 16), nn.Tanh()
+            # L2Normalize()
+        )
+
         self.trunk = nn.Sequential(
-            nn.Linear(input_size, hidden_size), nn.PReLU(),
-            # nn.Dropout(0.1),
-            nn.Linear(hidden_size, hidden_size), nn.PReLU(),
+            nn.Linear(input_size + 16, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.Tanh(),
             nn.Linear(hidden_size, output_size)
         )
+
+    def forward(self, non_image, image):
+        visual_embedding = self.visual_encoder(image)
+        output = self.trunk(torch.cat((non_image, visual_embedding), dim=1))
+        return output
+
+class IKDModel(pl.LightningModule):
+    def __init__(self, input_size, output_size, hidden_size=64):
+        super(IKDModel, self).__init__()
+        self.visual_ikd_model = VisualIKDNet(input_size, output_size, hidden_size)
 
         self.save_hyperparameters('input_size',
                                   'output_size',
@@ -43,24 +72,76 @@ class IKDModel(pl.LightningModule):
 
         self.loss = torch.nn.SmoothL1Loss()
 
-    def forward(self, x):
-        return self.trunk(x)
+        self.K = np.array(
+            [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0,
+             1.0]).reshape(
+            (3, 3))
+        self.C_i = torch.from_numpy(self.K).float().to(self.device)
+
+    def forward(self, non_visual_input, image):
+        return self.visual_ikd_model(non_visual_input, image)
+
+    # def img_fpv_to_bev(self, image, odom):
+    #     """
+    #     function to convert a first person view image into a bev image
+    #     :param image: input first person view image
+    #     :param odom: input rotation from the intel realsense (w,x,y,z)
+    #     :return: bird's eye view image
+    #     """
+    #
+    #     R_imu_world = qeuler(odom, 'xyz')
+    #     R_imu_world[:, 0], R_imu_world[:, 1] = R_imu_world[:, 0], -R_imu_world[:, 1]
+    #     R_imu_world[:, 2] = 0.
+    #
+    #     R_imu_world = euler_to_quaternion(R_imu_world, 'xyz')
+    #
+    #     R_cam_imu = torch.tensor([[0.5, -0.5, 0.5, -0.5]], dtype=torch.float32, device=self.device)
+    #     R_cam_imu.repeat(R_imu_world.shape[0], 1)
+    #
+    #     R1 = qmul(R_cam_imu, R_imu_world)
+    #     R1 = quaternion_to_matrix(R1)
+    #
+    #     R2 = torch.tensor([[0, 1, 0], [-1, 0, 0], [0, 0, 1]], dtype=torch.float32, device=self.device)
+    #     R2 = R2.repeat(R_imu_world.shape[0], 1, 1)
+    #
+    #     t1 = R1 @ torch.tensor([[0, 0, 0.5]], dtype=torch.float32, device=self.device)
+    #     t2 = R2 @ torch.tensor([[-2.5, 0, 6.0]], dtype=torch.float32, device=self.device)
+    #     n = torch.tensor([[0, 0, 1]], dtype=torch.float32, device=self.device).reshape(3, 1)
+    #     n1 = R1 @ n
+    #
+    #     R12 = R2 @ R1.T
+    #     t12 = R2 @ (-R1.T @ t1) + t2
+    #     # d is distance from plane to t1
+    #     d = torch.norm(n1.dot(t1.T))
+    #
+    #     H12 = R12 - ((t12 @ n1.T) / d)
+    #     H12 /= H12[2, 2]
+    #
+    #     homography_matrix = self.C_i @ H12 @ torch.inverse(self.C_i)
+    #     homography_matrix /= homography_matrix[2, 2]
+    #
+    #     image = kornia.warp_perspective(image, homography_matrix, dsize=(1280, 720))
+    #
+    #     return image
 
     def training_step(self, batch, batch_idx):
-        odom, joystick, accel, gyro, _ = batch
-        input = torch.cat((odom, accel, gyro), dim=1)
+        odom, joystick, accel, gyro, bevimage = batch
+        bevimage = bevimage.permute(0, 3, 1, 2)
 
-        prediction = self.trunk(input.float())
+        non_visual_input = torch.cat((odom, accel, gyro), dim=1)
+
+        prediction = self.forward(non_visual_input.float(), bevimage.float())
         loss = self.loss(prediction, joystick.float())
         self.log('train_loss', loss, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        odom, joystick, accel, gyro, _ = batch
+        odom, joystick, accel, gyro, bevimage = batch
+        bevimage = bevimage.permute(0, 3, 1, 2)
 
-        input = torch.cat((odom, accel, gyro), dim=1)
+        non_visual_input = torch.cat((odom, accel, gyro), dim=1)
 
-        prediction = self.trunk(input.float())
+        prediction = self.forward(non_visual_input.float(), bevimage.float())
         loss = self.loss(prediction, joystick.float())
         self.log('val_loss', loss, prog_bar=True, logger=True)
         return loss
@@ -114,8 +195,8 @@ class IKDDataModule(pl.LightningDataModule):
         joystick_mean = np.mean(filtered_data['joystick'], axis=0)
         joystick_std = np.std(filtered_data['joystick'], axis=0)
 
-        # filtered_data['odom'][:, :3] = (filtered_data['odom'][:, :3] - odom_mean)/(odom_std + 1e-8)
-        # filtered_data['joystick'] = (filtered_data['joystick'] - joystick_mean)/(joystick_std + 1e-8)
+        filtered_data['odom'][:, :3] = (filtered_data['odom'][:, :3] - odom_mean)/(odom_std + 1e-8)
+        filtered_data['joystick'] = (filtered_data['joystick'] - joystick_mean)/(joystick_std + 1e-8)
 
         class MyDataset(Dataset):
             def __init__(self, filtered_data, history_len):
@@ -138,33 +219,41 @@ class IKDDataModule(pl.LightningDataModule):
                 for i in range(self.history_len):
                     joystick_history = np.concatenate((joystick_history, self.data['joystick'][idx+i]))
 
-                # # bird's eye view homography projection
-                # R_imu_world = R.from_quat(self.data['odom'][idx][-4:])
-                # R_imu_world = R_imu_world.as_euler('xyz', degrees=True)
-                # # R_imu_world[0] = 0.5
-                # # R_imu_world[1] = 0.
-                # R_imu_world[0], R_imu_world[1] = R_imu_world[0], -R_imu_world[1]
-                # R_imu_world[2] = 0.
-                #
-                # R_imu_world = R_imu_world
-                # R_imu_world = R.from_euler('xyz', R_imu_world, degrees=True)
-                #
-                # R_cam_imu = R.from_euler("xyz", [-90, 90, 0], degrees=True)
-                # R1 = R_cam_imu * R_imu_world
-                # R1 = R1.as_matrix()
-                #
-                # R2 = R.from_euler("xyz", [0, 0, -90], degrees=True).as_matrix()
-                # t1 = R1 @ np.array([0., 0., 0.5]).reshape((3, 1))
-                # t2 = R2 @ np.array([-2.5, -0., 6.0]).reshape((3, 1))
-                # n = np.array([0, 0, 1]).reshape((3, 1))
-                # n1 = R1 @ n
-                #
-                # H12 = self.homography_camera_displacement(R1, R2, t1, t2, n1)
-                # homography_matrix = self.C_i @ H12 @ np.linalg.inv(self.C_i)
-                # homography_matrix /= homography_matrix[2, 2]
-                #
-                # bev_img = cv2.warpPerspective(self.data['rgb'][idx],
-                #                              homography_matrix, (1280, 720))
+                #############################################
+                ### bird's eye view homography projection ###
+                #############################################
+
+                R_imu_world = R.from_quat(self.data['odom'][idx][-4:])
+                R_imu_world = R_imu_world.as_euler('xyz', degrees=True)
+                # R_imu_world[0] = 0.5
+                # R_imu_world[1] = 0.
+                R_imu_world[0], R_imu_world[1] = R_imu_world[0], -R_imu_world[1]
+                R_imu_world[2] = 0.
+
+                R_imu_world = R_imu_world
+                R_imu_world = R.from_euler('xyz', R_imu_world, degrees=True)
+
+                R_cam_imu = R.from_euler("xyz", [-90, 90, 0], degrees=True)
+                R1 = R_cam_imu * R_imu_world
+                R1 = R1.as_matrix()
+
+                R2 = R.from_euler("xyz", [0, 0, -90], degrees=True).as_matrix()
+                t1 = R1 @ np.array([0., 0., 0.5]).reshape((3, 1))
+                t2 = R2 @ np.array([-2.5, -0., 6.0]).reshape((3, 1))
+                n = np.array([0, 0, 1]).reshape((3, 1))
+                n1 = R1 @ n
+
+                H12 = self.homography_camera_displacement(R1, R2, t1, t2, n1)
+                homography_matrix = self.C_i @ H12 @ np.linalg.inv(self.C_i)
+                homography_matrix /= homography_matrix[2, 2]
+
+                bev_img = cv2.warpPerspective(self.data['rgb'][idx],
+                                             homography_matrix, (1280, 720))
+
+                # extract the image patch infront of the car
+                bev_img = bev_img[420:520, 540:740]
+                bev_img = cv2.resize(bev_img, (128, 128), interpolation=cv2.INTER_AREA)
+                # bev_img = cv2.rectangle(bev_img, (540, 420), (740, 520), (0, 0, 255), thickness=2)
 
                 # cv2.imshow('disp', bev_img)
                 # cv2.waitKey(0)
@@ -173,7 +262,7 @@ class IKDDataModule(pl.LightningDataModule):
                        joystick_history, \
                        self.data['accel'][idx], \
                        self.data['gyro'][idx], \
-                       bev_img
+                       bev_img/255.
 
             @staticmethod
             def homography_camera_displacement(R1, R2, t1, t2, n1):
@@ -190,11 +279,10 @@ class IKDDataModule(pl.LightningDataModule):
         dataset_len = len(full_dataset)
         print('dataset length : ', dataset_len)
 
-        # self.validation_dataset, self.train_dataset = random_split(full_dataset, [int(0.2 * dataset_len), dataset_len - int(0.2 * dataset_len)])
-        self.validation_dataset, self.train_dataset = full_dataset, full_dataset
+        self.validation_dataset, self.train_dataset = random_split(full_dataset, [int(0.2 * dataset_len), dataset_len - int(0.2 * dataset_len)])
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False,
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True,
                           drop_last=not (len(self.train_dataset) % self.batch_size == 0.0))
 
     def val_dataloader(self):
@@ -202,13 +290,12 @@ class IKDDataModule(pl.LightningDataModule):
                           drop_last=not (len(self.validation_dataset) % self.batch_size == 0.0))
 
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='rosbag parser')
     parser.add_argument('--rosbag_path', type=str, default='data/ahgroad_new.bag')
     parser.add_argument('--frequency', type=int, default=20)
-    parser.add_argument('--max_time', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument('--max_time', type=int, default=20)
+    parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--max_epochs', type=int, default=1000)
     parser.add_argument('--history_len', type=int, default=20)
     parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
@@ -216,6 +303,7 @@ if __name__ == '__main__':
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # accel + gyro + odom*history
     model = IKDModel(input_size=6 + 3*args.history_len, output_size=2*args.history_len, hidden_size=256)
     model = model.to(device)
 

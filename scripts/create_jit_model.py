@@ -1,6 +1,6 @@
 import argparse
 import torch
-from train import IKDDataModule, IKDModel
+from scripts.train import IKDDataModule, IKDModel
 parser = argparse.ArgumentParser(description='rosbag parser')
 parser.add_argument('--rosbag_path', type=str, default='data/ahg_road.bag')
 parser.add_argument('--history_len', type=int, default=20)
@@ -19,15 +19,15 @@ model = IKDModel(input_size=6 + 3*args.history_len, output_size=2*args.history_l
 model = model.to(device=device)
 model.load_state_dict(torch.load(args.model_path)["state_dict"])
 
-  topics_to_read = [
-      '/camera/odom/sample',
-      '/joystick',
-      '/camera/accel/sample',
-      '/camera/gyro/sample',
-      '/webcam/image_raw/compressed'
-  ]
+topics_to_read = [
+  '/camera/odom/sample',
+  '/joystick',
+  '/camera/accel/sample',
+  '/camera/gyro/sample',
+  '/webcam/image_raw/compressed'
+]
 
-  keys = ['rgb', 'odom', 'accel', 'gyro', 'joystick']
+keys = ['rgb', 'odom', 'accel', 'gyro', 'joystick']
 
 dm = IKDDataModule(rosbag_path=args.rosbag_path,
                     frequency=args.frequency,
