@@ -46,7 +46,6 @@ class VisualIKDNet(nn.Module):
             self.flatten,
             nn.Linear(256*3*3, 128), nn.PReLU(),
             nn.Linear(128, 16), nn.Tanh()
-            # L2Normalize()
         )
 
         self.trunk = nn.Sequential(
@@ -78,8 +77,8 @@ class IKDModel(pl.LightningModule):
             (3, 3))
         self.C_i = torch.from_numpy(self.K).float().to(self.device)
 
-    def forward(self, non_visual_input, image):
-        return self.visual_ikd_model(non_visual_input, image)
+    def forward(self, non_visual_input, bevimage):
+        return self.visual_ikd_model(non_visual_input, bevimage)
 
     # def img_fpv_to_bev(self, image, odom):
     #     """
