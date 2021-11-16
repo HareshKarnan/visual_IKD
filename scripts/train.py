@@ -46,7 +46,6 @@ class VisualIKDNet(nn.Module):
             self.flatten,
             nn.Linear(256*3*3, 128), nn.PReLU(),
             nn.Linear(128, 16), nn.Tanh()
-            # L2Normalize()
         )
 
         self.trunk = nn.Sequential(
@@ -62,15 +61,17 @@ class VisualIKDNet(nn.Module):
         return output
 
 class IKDModel(pl.LightningModule):
-    def __init__(self, input_size, output_size, hidden_size=64):
+    def __init__(self, input_size, output_size, hidden_size=64, history_len=1):
         super(IKDModel, self).__init__()
         self.visual_ikd_model = VisualIKDNet(input_size, output_size, hidden_size)
 
         self.save_hyperparameters('input_size',
                                   'output_size',
-                                  'hidden_size')
+                                  'hidden_size',
+                                  'history_len')
 
-        self.loss = torch.nn.SmoothL1Loss()
+        # self.loss = torch.nn.SmoothL1Loss()
+        self.loss = torch.nn.MSELoss()
 
         self.K = np.array(
             [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0,
@@ -78,8 +79,8 @@ class IKDModel(pl.LightningModule):
             (3, 3))
         self.C_i = torch.from_numpy(self.K).float().to(self.device)
 
-    def forward(self, non_visual_input, image):
-        return self.visual_ikd_model(non_visual_input, image)
+    def forward(self, non_visual_input, bevimage):
+        return self.visual_ikd_model(non_visual_input, bevimage)
 
     # def img_fpv_to_bev(self, image, odom):
     #     """
@@ -151,7 +152,7 @@ class IKDModel(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=3e-4, weight_decay=3e-4)
+        optimizer = torch.optim.AdamW(self.visual_ikd_model.parameters(), lr=1e-5, weight_decay=1e-5)
         return optimizer
 
 class IKDDataModule(pl.LightningDataModule):
@@ -215,9 +216,9 @@ class IKDDataModule(pl.LightningDataModule):
                 for i in range(self.history_len):
                     odom_history = np.concatenate((odom_history, self.data['odom'][idx+i][:3]))
 
-                joystick_history = np.array([])
-                for i in range(self.history_len):
-                    joystick_history = np.concatenate((joystick_history, self.data['joystick'][idx+i]))
+                # joystick_history = np.array([])
+                # for i in range(self.history_len):
+                #     joystick_history = np.concatenate((joystick_history, self.data['joystick'][idx+i]))
 
                 #############################################
                 ### bird's eye view homography projection ###
@@ -259,7 +260,7 @@ class IKDDataModule(pl.LightningDataModule):
                 # cv2.waitKey(0)
 
                 return odom_history, \
-                       joystick_history, \
+                       self.data['joystick'][idx], \
                        self.data['accel'][idx], \
                        self.data['gyro'][idx], \
                        bev_img/255.
@@ -295,16 +296,20 @@ if __name__ == '__main__':
     parser.add_argument('--rosbag_path', type=str, default='data/ahgroad_new.bag')
     parser.add_argument('--frequency', type=int, default=20)
     parser.add_argument('--max_time', type=int, default=20)
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--max_epochs', type=int, default=1000)
-    parser.add_argument('--history_len', type=int, default=20)
+    parser.add_argument('--history_len', type=int, default=10)
     parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # accel + gyro + odom*history
-    model = IKDModel(input_size=6 + 3*args.history_len, output_size=2*args.history_len, hidden_size=256)
+    model = IKDModel(input_size=6 + 3*args.history_len,
+                     output_size=2,
+                     hidden_size=256,
+                     history_len=args.history_len)
+
     model = model.to(device)
 
     topics_to_read = [
