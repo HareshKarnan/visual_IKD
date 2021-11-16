@@ -43,6 +43,9 @@ class IKDModel(pl.LightningModule):
 
         self.loss = torch.nn.SmoothL1Loss()
 
+    def forward(self, x):
+        return self.trunk(x)
+
     def training_step(self, batch, batch_idx):
         odom, joystick, accel, gyro, _ = batch
         input = torch.cat((odom, accel, gyro), dim=1)
@@ -105,14 +108,14 @@ class IKDDataModule(pl.LightningDataModule):
 
         # normalize odom and joystick
         cprint('Normalizing joystick and odom values', 'red')
-        odom_mean = np.mean(filtered_data['odom'], axis=0)
-        odom_std = np.std(filtered_data['odom'], axis=0)
+        odom_mean = np.mean(filtered_data['odom'][:, :3], axis=0)
+        odom_std = np.std(filtered_data['odom'][:, :3], axis=0)
 
         joystick_mean = np.mean(filtered_data['joystick'], axis=0)
         joystick_std = np.std(filtered_data['joystick'], axis=0)
 
-        filtered_data['odom'] = (filtered_data['odom'] - odom_mean)/(odom_std + 1e-8)
-        filtered_data['joystick'] = (filtered_data['joystick'] - joystick_mean)/(joystick_std + 1e-8)
+        # filtered_data['odom'][:, :3] = (filtered_data['odom'][:, :3] - odom_mean)/(odom_std + 1e-8)
+        # filtered_data['joystick'] = (filtered_data['joystick'] - joystick_mean)/(joystick_std + 1e-8)
 
         class MyDataset(Dataset):
             def __init__(self, filtered_data, history_len):
@@ -122,7 +125,6 @@ class IKDDataModule(pl.LightningDataModule):
                     [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0,
                      1.0]).reshape(
                     (3, 3))
-
 
             def __len__(self):
                 return len(self.data['odom']) - self.history_len
@@ -136,31 +138,36 @@ class IKDDataModule(pl.LightningDataModule):
                 for i in range(self.history_len):
                     joystick_history = np.concatenate((joystick_history, self.data['joystick'][idx+i]))
 
-                # bird's eye view homography projection
-                R_imu_world = R.from_quat(odom_history[-4:]).as_euler('xyz', degrees=True)
-                R_imu_world[0], R_imu_world[1] = R_imu_world[0], -R_imu_world[1]
-                R_imu_world[2] = 0.
-                R_imu_world = R.from_euler('xyz', R_imu_world, degrees=True)
+                # # bird's eye view homography projection
+                # R_imu_world = R.from_quat(self.data['odom'][idx][-4:])
+                # R_imu_world = R_imu_world.as_euler('xyz', degrees=True)
+                # # R_imu_world[0] = 0.5
+                # # R_imu_world[1] = 0.
+                # R_imu_world[0], R_imu_world[1] = R_imu_world[0], -R_imu_world[1]
+                # R_imu_world[2] = 0.
+                #
+                # R_imu_world = R_imu_world
+                # R_imu_world = R.from_euler('xyz', R_imu_world, degrees=True)
+                #
+                # R_cam_imu = R.from_euler("xyz", [-90, 90, 0], degrees=True)
+                # R1 = R_cam_imu * R_imu_world
+                # R1 = R1.as_matrix()
+                #
+                # R2 = R.from_euler("xyz", [0, 0, -90], degrees=True).as_matrix()
+                # t1 = R1 @ np.array([0., 0., 0.5]).reshape((3, 1))
+                # t2 = R2 @ np.array([-2.5, -0., 6.0]).reshape((3, 1))
+                # n = np.array([0, 0, 1]).reshape((3, 1))
+                # n1 = R1 @ n
+                #
+                # H12 = self.homography_camera_displacement(R1, R2, t1, t2, n1)
+                # homography_matrix = self.C_i @ H12 @ np.linalg.inv(self.C_i)
+                # homography_matrix /= homography_matrix[2, 2]
+                #
+                # bev_img = cv2.warpPerspective(self.data['rgb'][idx],
+                #                              homography_matrix, (1280, 720))
 
-                R_cam_imu = R.from_euler("xyz", [-90, 90, 0], degrees=True)
-                R1 = R_cam_imu * R_imu_world
-                R1 = R1.as_matrix()
-
-                R2 = R.from_euler("xyz", [0, 0, -90], degrees=True).as_matrix()
-                t1 = R1 @ np.array([0., 0., 0.5]).reshape((3, 1))
-                t2 = R2 @ np.array([-2.5, -0., 6.0]).reshape((3, 1))
-                n = np.array([0, 0, 1]).reshape((3, 1))
-                n1 = R1 @ n
-
-                H12 = self.homography_camera_displacement(R1, R2, t1, t2, n1)
-                homography_matrix = self.C_i @ H12 @ np.linalg.inv(self.C_i)
-                homography_matrix /= homography_matrix[2, 2]
-
-                bev_img = cv2.warpPerspective(self.data['rgb'][idx],
-                                             homography_matrix, (1280, 720))
-
-                cv2.imshow('disp', bev_img)
-                cv2.waitKey(0)
+                # cv2.imshow('disp', bev_img)
+                # cv2.waitKey(0)
 
                 return odom_history, \
                        joystick_history, \
@@ -183,10 +190,11 @@ class IKDDataModule(pl.LightningDataModule):
         dataset_len = len(full_dataset)
         print('dataset length : ', dataset_len)
 
-        self.validation_dataset, self.train_dataset = random_split(full_dataset, [int(0.2 * dataset_len), dataset_len - int(0.2 * dataset_len)])
+        # self.validation_dataset, self.train_dataset = random_split(full_dataset, [int(0.2 * dataset_len), dataset_len - int(0.2 * dataset_len)])
+        self.validation_dataset, self.train_dataset = full_dataset, full_dataset
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True,
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False,
                           drop_last=not (len(self.train_dataset) % self.batch_size == 0.0))
 
     def val_dataloader(self):
@@ -197,10 +205,10 @@ class IKDDataModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='rosbag parser')
-    parser.add_argument('--rosbag_path', type=str, default='data/ahg_road.bag')
+    parser.add_argument('--rosbag_path', type=str, default='data/ahgroad_new.bag')
     parser.add_argument('--frequency', type=int, default=20)
-    parser.add_argument('--max_time', type=int, default=20)
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--max_time', type=int, default=10)
+    parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--max_epochs', type=int, default=1000)
     parser.add_argument('--history_len', type=int, default=20)
     parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")

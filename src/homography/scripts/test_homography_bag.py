@@ -59,8 +59,8 @@ def callback(odom, image):
 
     output = cv2.warpPerspective(img, homography_matrix, (1280, 720))
 
-    img = cv2.resize(img, (640, 360))
-    output = cv2.resize(output, (640, 360))
+    # img = cv2.resize(img, (640, 360))
+    # output = cv2.resize(output, (640, 360))
     cv2.imshow('disp', np.hstack((img, output)))
     cv2.waitKey(1)
 
