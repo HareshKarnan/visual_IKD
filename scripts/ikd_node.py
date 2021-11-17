@@ -14,7 +14,7 @@ from scipy.spatial.transform import Rotation as R
 
 from geometry_msgs.msg import Twist
 
-from scripts.train import IKDModel
+from scripts.model import VisualIKDNet
 
 class LiveDataProcessor(object):
     def __init__(self, config_path, history_len):
@@ -133,7 +133,7 @@ class IKDNode(object):
     self.input_topic = input_topic
     self.output_topic = output_topic
     self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    self.model = IKDModel(input_size=6 + 3*self.history_len, output_size=2*self.history_len, hidden_size=256).to(device=self.device)
+    self.model = VisualIKDNet(input_size=6 + 3*self.history_len, output_size=2*self.history_len, hidden_size=256).to(device=self.device)
     if self.model_path is not None:
       self.model.load_state_dict(torch.load(self.model_path)["state_dict"])
     self.nav_cmd = AckermannCurvatureDriveMsg()
