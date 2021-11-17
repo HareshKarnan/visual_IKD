@@ -135,7 +135,7 @@ class IKDNode(object):
     self.input_topic = input_topic
     self.output_topic = output_topic
     self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    self.model = VisualIKDNet(input_size=6 + 3*self.history_len, output_size=2*self.history_len, hidden_size=256).to(device=self.device)
+    self.model = VisualIKDNet(input_size=6 + 3*(self.history_len+1), output_size=2, hidden_size=256).to(device=self.device)
     if self.model_path is not None:
       self.model.load_state_dict(torch.load(self.model_path))
     self.nav_cmd = AckermannCurvatureDriveMsg()
@@ -182,7 +182,7 @@ if __name__ == '__main__':
   parser.add_argument('--input_topic', default='/ackermann_drive_init', type=str)
   parser.add_argument('--output_topic', default='/ackermann_curvature_drive',  type=str)
   parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
-  parser.add_argument('--history_len', type=int, default=20)
+  parser.add_argument('--history_len', type=int, default=10)
   args = parser.parse_args()
 
   node = IKDNode(args.model_path, args.config_path, args.history_len, args.input_topic, args.output_topic)
