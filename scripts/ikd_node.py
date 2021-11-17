@@ -149,12 +149,14 @@ class IKDNode(object):
     data = self.data_processor.process_accel_gyro_data(data)
     odom_history = data['odom']
     desired_odom = [np.array([msg.velocity, 0, msg.velocity * msg.curvature])]
-    accel = data['accel']
-    gyro = data['gyro']
+    accel = torch.tensor(data['accel'])
+    gyro = torch.tensor(data['gyro'])
     patch = data['image']
     patch = torch.tensor(patch).permute(2, 0, 1).to(self.device)
     odom_history.extend(desired_odom)
-    non_visual_input = torch.cat((np.array(odom_history).flatten(), accel, gyro), dim=1).to(self.device)
+    odom_input = torch.tensor(np.array(odom_history).flatten())
+    print("SHAPES", odom_input.shape, accel.shape, gyro.shape, patch.shape)
+    non_visual_input = torch.cat((odom_input, accel, gyro), dim=1).to(self.device)
 
     output = self.model(non_visual_input.float(), patch.float())
 
