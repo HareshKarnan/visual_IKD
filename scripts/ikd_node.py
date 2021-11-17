@@ -57,8 +57,8 @@ class LiveDataProcessor(object):
         self.data['gyro'] = np.array([gyro.angular_velocity.x, gyro.angular_velocity.y, gyro.angular_velocity.z])
 
         self.data['odom'].append(odom_np)
-        if (self.n > self.history_len):
-            self.data['odom'].pop(0)
+        self.data['odom'] = self.data['odom'][:self.history_len]
+        
 
     def get_data(self):
         return self.data
@@ -159,7 +159,7 @@ class IKDNode(object):
     rospy.init_node('ikd_node', anonymous=True)
 
     self.data_processor = LiveDataProcessor(self.config_path, self.history_len)
-    while (self.data_processor.n < 10):
+    while (len(self.data_processor.get_data()['odom']) < self.history_len):
       print("Waiting for data processor initialization...Are all the necessary sensors running?")
       rospy.sleep(1)
     print("Data processor initialized, listening for commands")
