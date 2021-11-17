@@ -14,6 +14,8 @@ from scipy.spatial.transform import Rotation as R
 
 from scripts.model import VisualIKDNet
 
+import roslib
+roslib.load_manifest('amrl_msgs')
 from amrl_msgs.msg import AckermannCurvatureDriveMsg
 
 class LiveDataProcessor(object):
