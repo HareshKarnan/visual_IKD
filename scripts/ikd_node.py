@@ -144,7 +144,7 @@ class IKDNode(object):
     odom_history.extend(desired_odom)
     odom_input = torch.tensor(np.array(odom_history).flatten())
     print("SHAPES", odom_input.shape, accel.shape, gyro.shape, patch.shape)
-    non_visual_input = torch.cat((odom_input, accel, gyro), dim=1).to(self.device)
+    non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
 
     output = self.model(non_visual_input.float(), patch.float())
 
