@@ -56,8 +56,7 @@ class LiveDataProcessor(object):
         self.data['accel'] = np.array([accel.linear_acceleration.x, accel.linear_acceleration.y, accel.linear_acceleration.z])
         self.data['gyro'] = np.array([gyro.angular_velocity.x, gyro.angular_velocity.y, gyro.angular_velocity.z])
 
-        self.data['odom'].append(odom_np)
-        self.data['odom'] = self.data['odom'][:self.history_len]
+        self.data['odom'] = (self.data['odom'] + [odom_np])[:self.history_len]
         
 
     def get_data(self):
@@ -128,6 +127,7 @@ class IKDNode(object):
     self.model = VisualIKDNet(input_size=6 + 3*(self.history_len+1), output_size=2, hidden_size=256).to(device=self.device)
     if self.model_path is not None:
       self.model.load_state_dict(torch.load(self.model_path))
+    self.model.eval()
     print("Loaded Model")
     self.nav_cmd = AckermannCurvatureDriveMsg()
     self.nav_cmd.velocity = 0.0
@@ -143,10 +143,11 @@ class IKDNode(object):
     patch = torch.tensor(patch).permute(2, 0, 1).to(self.device)
     odom_input = np.concatenate((odom_history, desired_odom))
     odom_input = torch.tensor(odom_input.flatten())
-    print("SHAPES", odom_input.shape, accel.shape, gyro.shape, patch.shape)
     non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
+    print("SHAPES", non_visual_input.shape, patch.shape)
 
-    output = self.model(non_visual_input.unsqueeze(0).float(), patch.unsqueeze(0).float())
+    with torch.no_grad():
+      output = self.model(non_visual_input.unsqueeze(0).float(), patch.unsqueeze(0).float())
 
     print("OUTPUT", output)
     v, w = output.squeeze(0).detach().cpu().numpy()
