@@ -14,10 +14,7 @@ from scipy.spatial.transform import Rotation as R
 
 from scripts.model import VisualIKDNet
 
-import sys
-sys.path.append('/home/alphatruck/amrl/amrl_msgs')
 from amrl_msgs.msg import AckermannCurvatureDriveMsg
-
 
 class LiveDataProcessor(object):
     def __init__(self, config_path, history_len):
