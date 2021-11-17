@@ -6,15 +6,18 @@ import numpy as np
 import cv2
 from sensor_msgs.msg import CompressedImage, Imu
 from nav_msgs.msg import Odometry
-from amrl_msgs.msg import AckermannCurvatureDriveMsg
+
 import message_filters
 from termcolor import cprint
 import yaml
 from scipy.spatial.transform import Rotation as R
 
-from geometry_msgs.msg import Twist
-
 from scripts.model import VisualIKDNet
+
+import sys
+sys.path.append('/home/alphatruck/amrl/amrl_msgs')
+from amrl_msgs.msg import AckermannCurvatureDriveMsg
+
 
 class LiveDataProcessor(object):
     def __init__(self, config_path, history_len):
