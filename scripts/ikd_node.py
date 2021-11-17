@@ -52,9 +52,9 @@ class LiveDataProcessor(object):
         # convert odom to numpy array
         odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
 
-        self.data['image'] =  bevimage
-        self.data['accel'] = [accel]
-        self.data['gyro'] = [gyro]
+        self.data['image'] = bevimage
+        self.data['accel'] = np.array([accel.linear_acceleration.x, accel.linear_acceleration.y, accel.linear_acceleration.z])
+        self.data['gyro'] = np.array([gyro.angular_velocity.x, gyro.angular_velocity.y, gyro.angular_velocity.z])
 
         self.data['odom'].append(odom_np)
         if (self.n > self.history_len):
@@ -115,17 +115,6 @@ class LiveDataProcessor(object):
 
         return output
 
-    @staticmethod
-    def process_accel_gyro_data(data):
-        for i in range(len(data['accel'])):
-            accel = data['accel'][i].linear_acceleration
-            gyro = data['gyro'][i].angular_velocity
-            data['accel'][i] = [accel.x, accel.y, accel.z]
-            data['gyro'][i] = [gyro.x, gyro.y, gyro.z]
-        data['accel'] = np.asarray(data['accel'])
-        data['gyro'] = np.asarray(data['gyro'])
-        return data
-
 
 class IKDNode(object):
   def __init__(self, model_path, config_path, history_len, input_topic, output_topic):
@@ -146,7 +135,6 @@ class IKDNode(object):
     
   def navCallback(self, msg):
     data = self.data_processor.get_data()
-    data = self.data_processor.process_accel_gyro_data(data)
     odom_history = data['odom']
     desired_odom = [np.array([msg.velocity, 0, msg.velocity * msg.curvature])]
     accel = torch.tensor(data['accel'])
