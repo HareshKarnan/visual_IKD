@@ -1,0 +1,6 @@
+<launch>
+    <param name="config_path" type="str" value="$(find rosbag_sync_data_rerecorder)/config/alphatruck.yaml" />
+    <param name="save_data_path" type="str  " value="$(find rosbag_sync_data_rerecorder)/data/mydata.pkl" />
+
+    <node name="rosbag_data_recorder" pkg="rosbag_sync_data_rerecorder" type="rosbag_data_recorder.py" output="screen" />
+</launch>

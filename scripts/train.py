@@ -1,4 +1,5 @@
 import pytorch_lightning as pl
+import rosbag
 import torch.nn as nn
 import torch
 import argparse
