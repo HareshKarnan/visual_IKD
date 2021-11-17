@@ -151,7 +151,7 @@ class IKDNode(object):
     accel = data['accel']
     gyro = data['gyro']
     patch = data['image']
-    patch = torch.tensor(patch).permute(0, 3, 1, 2).to(self.device)
+    patch = torch.tensor(patch).permute(2, 0, 1).to(self.device)
     odom_input = odom_history.concat(desired_odom)
     non_visual_input = torch.cat((np.array(odom_input).flatten(), accel, gyro), dim=1).to(self.device)
 
@@ -169,7 +169,7 @@ class IKDNode(object):
 
     self.data_processor = LiveDataProcessor(self.config_path, self.history_len)
     while (self.data_processor.n < 10):
-      print("Waiting for data processor initialization...")
+      print("Waiting for data processor initialization...Are all the necessary sensors running?")
       rospy.sleep(1)
     print("Data processor initialized, listening for commands")
     rospy.Subscriber(self.input_topic, AckermannCurvatureDriveMsg, self.navCallback)
