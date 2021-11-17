@@ -146,9 +146,9 @@ class IKDNode(object):
     print("SHAPES", odom_input.shape, accel.shape, gyro.shape, patch.shape)
     non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
 
-    output = self.model(non_visual_input.float(), patch.float())
+    output = self.model(non_visual_input.unsqueeze(0).float(), patch.unsqueeze(0).float())
 
-    v, w = output.detach().cpu().numpy()
+    v, w = output.squeeze(0).detach().cpu().numpy()
 
     # populate with v and w
     self.nav_cmd.velocity = v
