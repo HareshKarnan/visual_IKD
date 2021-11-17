@@ -53,8 +53,8 @@ class LiveDataProcessor(object):
         odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
 
         self.data['image'] =  bevimage
-        self.data['accel'] = accel
-        self.data['gyro'] = gyro
+        self.data['accel'] = [accel]
+        self.data['gyro'] = [gyro]
 
         self.data['odom'].append(odom_np)
         if (self.n > self.history_len):
@@ -146,6 +146,7 @@ class IKDNode(object):
     
   def navCallback(self, msg):
     data = self.data_processor.get_data()
+    data = self.data_processor.process_accel_gyro_data(data)
     odom_history = data['odom']
     desired_odom = [np.array([msg.velocity, 0, msg.velocity * msg.curvature])]
     accel = data['accel']
