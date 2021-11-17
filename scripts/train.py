@@ -59,7 +59,6 @@ class VisualIKDNet(nn.Module):
         )
 
     def forward(self, non_image, image):
-        print('image shape : ',image.shape)
         visual_embedding = self.visual_encoder(image)
         output = self.trunk(torch.cat((non_image, visual_embedding), dim=1))
         return output
@@ -108,35 +107,37 @@ class IKDModel(pl.LightningModule):
         return torch.optim.AdamW(self.visual_ikd_model.parameters(), lr=1e-5, weight_decay=1e-5)
 
 class IKDDataModule(pl.LightningDataModule):
-    def __init__(self, data, batch_size):
+    def __init__(self, data, batch_size, history_len):
         super(IKDDataModule, self).__init__()
 
         self.data = data
-        print('length of data : ', len(self.data))
         self.batch_size = batch_size
+        self.history_len = history_len
 
         class MyDataset(Dataset):
-            def __init__(self, data):
+            def __init__(self, data, history_len):
                 self.data = data
+                self.history_len = history_len
 
             def __len__(self):
-                return len(self.data['odom'])-1
+                return len(self.data['odom']) - self.history_len
 
             def __getitem__(self, idx):
-                odom = self.data['odom'][idx]
-                joystick = self.data['joystick'][idx]
-                accel = self.data['accel'][idx]
-                gyro = self.data['gyro'][idx]
-                bevimage = self.data['image'][idx]
-
-
+                # history of odoms + next state
+                odom_history = self.data['odom'][idx:idx+self.history_len + 1]
+                joystick = self.data['joystick'][idx + self.history_len - 1]
+                accel = self.data['accel'][idx + self.history_len - 1]
+                gyro = self.data['gyro'][idx + self.history_len - 1]
+                bevimage = self.data['image'][idx + self.history_len - 1]
                 bevimage = cv2.resize(bevimage, (128, 128), interpolation=cv2.INTER_AREA)
-                cv2.imshow('disp', bevimage)
-                cv2.waitKey(1)
 
-                return odom, joystick, accel, gyro, bevimage
+                # cv2.imshow('disp', bevimage)
+                # cv2.waitKey(0)
 
-        self.dataset = MyDataset(self.data)
+                return np.asarray(odom_history).flatten(), joystick, accel, gyro, bevimage
+
+        self.dataset = MyDataset(self.data, history_len)
+        print('Total data points : ', len(self.dataset))
 
         self.validation_dataset, self.training_dataset = random_split(self.dataset, [int(0.2*len(self.dataset)), len(self.dataset) - int(0.2*len(self.dataset))])
 
@@ -287,18 +288,15 @@ class IKDDataModule(pl.LightningDataModule):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='rosbag parser')
     parser.add_argument('--rosbag_path', type=str, default='data/ahgroad_new.bag')
-    parser.add_argument('--frequency', type=int, default=20)
-    parser.add_argument('--max_time', type=int, default=20)
-    parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--max_epochs', type=int, default=1000)
     parser.add_argument('--history_len', type=int, default=10)
-    parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
+    parser.add_argument('--batch_size', type=int, default=32)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # accel + gyro + odom*history
-    model = IKDModel(input_size=6 + 3*args.history_len,
+    model = IKDModel(input_size=3 + 3 + 3*(args.history_len+1),
                      output_size=2,
                      hidden_size=256,
                      history_len=args.history_len)
@@ -317,7 +315,7 @@ if __name__ == '__main__':
 
     data = pickle.load(open('data/mydata.pkl', 'rb'))
 
-    dm = IKDDataModule(data=data, batch_size=args.batch_size)
+    dm = IKDDataModule(data=data, batch_size=args.batch_size, history_len=args.history_len)
 
     early_stopping_cb = EarlyStopping(monitor='val_loss',
                                       mode='min',

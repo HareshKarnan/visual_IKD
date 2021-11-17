@@ -47,9 +47,7 @@ class ListenRecordData:
         bevimage = self.camera_imu_homography(odom, image)
 
         # convert odom to numpy array
-        odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z,
-                            odom.pose.pose.orientation.x, odom.pose.pose.orientation.y, odom.pose.pose.orientation.z,
-                            odom.pose.pose.orientation.w])
+        odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
 
         self.data['image'].append(bevimage)
         self.data['odom'].append(odom_np)
