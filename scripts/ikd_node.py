@@ -178,7 +178,7 @@ class IKDNode(object):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='ikd node')
-  parser.add_argument('--model_path', default='models/17-11-2021-15-35-04.ckpt', type=str)
+  parser.add_argument('--model_path', default='models/torchmodel.pt', type=str)
   parser.add_argument('--input_topic', default='/ackermann_drive_init', type=str)
   parser.add_argument('--output_topic', default='/ackermann_curvature_drive',  type=str)
   parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
