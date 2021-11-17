@@ -52,7 +52,7 @@ class LiveDataProcessor(object):
         # convert odom to numpy array
         odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
 
-        self.data['image'] = bevimage
+        self.data['image'] = cv2.resize(bevimage, (128, 128), interpolation=cv2.INTER_AREA)
         self.data['accel'] = np.array([accel.linear_acceleration.x, accel.linear_acceleration.y, accel.linear_acceleration.z])
         self.data['gyro'] = np.array([gyro.angular_velocity.x, gyro.angular_velocity.y, gyro.angular_velocity.z])
 
