@@ -137,7 +137,7 @@ class IKDNode(object):
     self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     self.model = VisualIKDNet(input_size=6 + 3*self.history_len, output_size=2*self.history_len, hidden_size=256).to(device=self.device)
     if self.model_path is not None:
-      self.model.load_state_dict(torch.load(self.model_path)["state_dict"])
+      self.model.load_state_dict(torch.load(self.model_path))
     self.nav_cmd = AckermannCurvatureDriveMsg()
     self.nav_cmd.velocity = 0.0
     self.nav_cmd.curvature = 0.0
