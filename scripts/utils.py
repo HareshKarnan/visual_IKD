@@ -6,12 +6,10 @@ import rosbag
 import random
 from PIL import Image, ImageOps, ImageFilter
 
-
 def parse_bag_with_img(bagfile_path, topics_to_read=None, max_time=None):
     bag = rosbag.Bag(bagfile_path, 'r')
 
     assert topics_to_read is not None, "Pass the list of topics to read"
-
     n = 0
 
     odom_list, joystick_list = [], []

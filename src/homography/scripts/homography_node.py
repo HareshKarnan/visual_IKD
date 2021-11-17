@@ -72,7 +72,6 @@ class homographyProjector:
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
         image = message_filters.Subscriber('/webcam/image_raw/compressed', CompressedImage)
         self.bevimage_pub = rospy.Publisher('/terrain_patch/compressed', CompressedImage, queue_size=1)
-
         ts = message_filters.ApproximateTimeSynchronizer([odom, image], 20, 1.0, allow_headerless=True)
         ts.registerCallback(self.callback)
 
