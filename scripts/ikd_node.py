@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 from sensor_msgs.msg import CompressedImage, Imu
 from nav_msgs.msg import Odometry
+from amrl_msgs.msg import AckermannCurvatureDriveMsg
 import message_filters
 from termcolor import cprint
 import yaml
@@ -125,26 +126,24 @@ class LiveDataProcessor(object):
 
 
 class IKDNode(object):
-  def __init__(self, model_path, config_path, history_len):
+  def __init__(self, model_path, config_path, history_len, input_topic, output_topic):
     self.model_path = model_path
     self.config_path = config_path
     self.history_len = history_len
+    self.input_topic = input_topic
+    self.output_topic = output_topic
     self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     self.model = IKDModel(input_size=6 + 3*self.history_len, output_size=2*self.history_len, hidden_size=256).to(device=self.device)
     if self.model_path is not None:
       self.model.load_state_dict(torch.load(self.model_path)["state_dict"])
-    self.nav_cmd = Twist()
-    self.nav_cmd.linear.x = 0.
-    self.nav_cmd.linear.y = 0.
-    self.nav_cmd.linear.z = 0.
-    self.nav_cmd.angular.x = 0.
-    self.nav_cmd.angular.y = 0.
-    self.nav_cmd.angular.z = 0.
+    self.nav_cmd = AckermannCurvatureDriveMsg()
+    self.nav_cmd.velocity = 0.0
+    self.nav_cmd.curvature = 0.0
     
   def navCallback(self, msg):
     data = self.data_processor.get_data()
     odom_history = data['odom']
-    desired_odom = [np.array([msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.angular.z])]
+    desired_odom = [np.array([msg.velocity, 0, msg.velocity * msg.curvature])]
     accel = data['accel']
     gyro = data['gyro']
     patch = data['image']
@@ -157,8 +156,8 @@ class IKDNode(object):
     v, w = output.detach().cpu().numpy()
 
     # populate with v and w
-    self.nav_cmd.linear.x = v
-    self.nav_cmd.angular.z = w
+    self.nav_cmd.velocity = v
+    self.nav_cmd.curvature = w / v
     self.nav_publisher.publish(self.nav_cmd)
 
   def listen(self):
@@ -169,8 +168,8 @@ class IKDNode(object):
       print("Waiting for data processor initialization...")
       rospy.sleep(1)
     print("Data processor initialized, listening for commands")
-    rospy.Subscriber("navigation/cmd_vel_init", Twist, self.navCallback)
-    self.nav_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
+    rospy.Subscriber(self.input_topic, AckermannCurvatureDriveMsg, self.navCallback)
+    self.nav_publisher = rospy.Publisher(self.output_topic, AckermannCurvatureDriveMsg, queue_size=1)
 
     # spin() simply keeps python from exiting until this node is stopped
     rospy.spin()
@@ -178,11 +177,13 @@ class IKDNode(object):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='ikd node')
   parser.add_argument('--model_path',  type=str)
+  parser.add_argument('--input_topic', default='/ackermann_drive_init', type=str)
+  parser.add_argument('--output_topic', default='/ackermann_curvature_drive',  type=str)
   parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
   parser.add_argument('--history_len', type=int, default=20)
   args = parser.parse_args()
 
-  node = IKDNode(args.model_path, args.config_path, args.history_len)
+  node = IKDNode(args.model_path, args.config_path, args.history_len, args.input_topic, args.output_topic)
 
   import signal
 
