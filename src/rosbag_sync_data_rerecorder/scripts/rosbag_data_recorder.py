@@ -113,19 +113,62 @@ class ListenRecordData:
         curr_z_rotation = R.from_euler('xyz', [0, 0, curr_z_angle]).as_matrix()
         patch_corners = [
             curr_pos_np + curr_z_rotation @ np.array([0.3, 0.3, 0]),
-            curr_pos_np + curr_z_rotation @ np.array([-0.3, -0.3, 0])
+            curr_pos_np + curr_z_rotation @ np.array([0.3, -0.3, 0]),
+            curr_pos_np + curr_z_rotation @ np.array([-0.3, -0.3, 0]),
+            curr_pos_np + curr_z_rotation @ np.array([-0.3, 0.3, 0])
         ]
         patch_corners_prev_frame = [
             inv_pos_transform @ patch_corners[0],
             inv_pos_transform @ patch_corners[1],
+            inv_pos_transform @ patch_corners[2],
+            inv_pos_transform @ patch_corners[3],
+        ]
+        scaled_patch_corners = [
+            (patch_corners_prev_frame[0] * 200).astype(np.int),
+            (patch_corners_prev_frame[1] * 200).astype(np.int),
+            (patch_corners_prev_frame[2] * 200).astype(np.int),
+            (patch_corners_prev_frame[3] * 200).astype(np.int),
         ]
         # TODO: FIGURE THIS OUT (x vs y in image vs local frame)
-        import pdb; pdb.set_trace()
+        CENTER = np.array((760, 640))
         patch_corners_image_frame = [
-            patch_corners_prev_frame[0] * 200,
-            patch_corners_prev_frame[1] * 200,
+            CENTER + np.array((-scaled_patch_corners[0][1], -scaled_patch_corners[0][0])),
+            CENTER + np.array((-scaled_patch_corners[1][1], -scaled_patch_corners[1][0])),
+            CENTER + np.array((-scaled_patch_corners[2][1], -scaled_patch_corners[2][0])),
+            CENTER + np.array((-scaled_patch_corners[3][1], -scaled_patch_corners[3][0]))
         ]
-        
+        vis_img = prev_image.copy()
+        cv2.line(
+            vis_img,
+            (patch_corners_image_frame[0][0], patch_corners_image_frame[0][1]),
+            (patch_corners_image_frame[1][0], patch_corners_image_frame[1][1]),
+            (0, 255, 0),
+            2
+        )
+        cv2.line(
+            vis_img,
+            (patch_corners_image_frame[1][0], patch_corners_image_frame[1][1]),
+            (patch_corners_image_frame[2][0], patch_corners_image_frame[2][1]),
+            (0, 255, 0),
+            2
+        )
+        cv2.line(
+            vis_img,
+            (patch_corners_image_frame[2][0], patch_corners_image_frame[2][1]),
+            (patch_corners_image_frame[3][0], patch_corners_image_frame[3][1]),
+            (0, 255, 0),
+            2
+        )
+        cv2.line(
+            vis_img,
+            (patch_corners_image_frame[3][0], patch_corners_image_frame[3][1]),
+            (patch_corners_image_frame[0][0], patch_corners_image_frame[0][1]),
+            (0, 255, 0),
+            2
+        )
+        cv2.imshow('vis_img', vis_img)
+        cv2.waitKey(0)
+        import pdb; pdb.set_trace()
         if (patch_corners_image_frame[0][0] < 0 or
             patch_corners_image_frame[0][1] < - 1280 / 2 or
             patch_corners_image_frame[1][0] < 0 or
