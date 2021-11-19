@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3
 import os.path
 from logging import root
 import pickle
@@ -40,11 +40,11 @@ class ListenRecordData:
         ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 20, 0.05, allow_headerless=False)
         ts.registerCallback(self.callback)
 
-        self.data = {'image': [], 'odom': [], 'joystick': [], 'accel': [], 'gyro': [], 'vectornav': []}
+        self.data = {'image': [], 'odom': [], 'joystick': [], 'accel': [], 'gyro': [], 'vectornav': [], 'patch': []}
 
     def callback(self, image, odom, joystick, accel, gyro, vectornavimu):
         # print('Received messages :: ', image.header.seq)
-
+    
         self.data['image'].append(image)
         self.data['odom'].append(odom)
         self.data['joystick'].append(joystick)
@@ -62,9 +62,13 @@ class ListenRecordData:
         # process bev image
         print('Processing bev image')
         self.data = self.process_bev_image(self.data)
+
+        print('Processing patches')
+        self.data = self.process_patches(self.data)
+
         # process odom
         print('Processing odom data')
-        self.data = self.process_odom_data(self.data)
+        self.data = self.process_odom_vel_data(self.data)
 
         # save data
         cprint('Saving data.. ', 'yellow')
@@ -80,7 +84,66 @@ class ListenRecordData:
             data['image'][i] = bevimage
         return data
 
-    def process_odom_data(self, data):
+    def process_patches(self, data):
+        for i in tqdm(range(len(data['image']))):
+            curr_odom = self.data['odom'][i]
+            patch = None
+            for j in range(max(i - 10, 0), i):
+                prev_image = self.data['image'][j]
+                prev_odom = self.data['odom'][j]
+
+                patch = self.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, prev_image)
+                if patch is not None:
+                    print('Patch found For location {} from location {}'.format(i, j))
+                    break
+            if patch is None:
+                patch = data['image'][i][420:520, 540:740]
+            data['patch'].append(patch)
+        return data
+
+    def get_patch_from_odom_delta(self, curr_pos, prev_pos, prev_image):
+        curr_pos_np = np.array([curr_pos.position.x, curr_pos.position.y, 1])
+        prev_pos_transform = np.zeros((3, 3))
+        z_angle = R.from_quat([prev_pos.orientation.x, prev_pos.orientation.y, prev_pos.orientation.z, prev_pos.orientation.w]).as_euler('xyz', degrees=False)[2]
+        prev_pos_transform[:2, :2] = R.from_euler('xyz', [0, 0, z_angle]).as_matrix()[:2,:2] # figure this out
+        prev_pos_transform[:, 2] = np.array([prev_pos.position.x, prev_pos.position.y, 1]).reshape((3))
+
+        inv_pos_transform = np.linalg.inv(prev_pos_transform)
+        curr_z_angle = R.from_quat([curr_pos.orientation.x, curr_pos.orientation.y, curr_pos.orientation.z, curr_pos.orientation.w]).as_euler('xyz', degrees=False)[2]
+        curr_z_rotation = R.from_euler('xyz', [0, 0, curr_z_angle]).as_matrix()
+        patch_corners = [
+            curr_pos_np + curr_z_rotation @ np.array([0.3, 0.3, 0]),
+            curr_pos_np + curr_z_rotation @ np.array([-0.3, -0.3, 0])
+        ]
+        patch_corners_prev_frame = [
+            inv_pos_transform @ patch_corners[0],
+            inv_pos_transform @ patch_corners[1],
+        ]
+        # TODO: FIGURE THIS OUT (x vs y in image vs local frame)
+        import pdb; pdb.set_trace()
+        patch_corners_image_frame = [
+            patch_corners_prev_frame[0] * 200,
+            patch_corners_prev_frame[1] * 200,
+        ]
+        
+        if (patch_corners_image_frame[0][0] < 0 or
+            patch_corners_image_frame[0][1] < - 1280 / 2 or
+            patch_corners_image_frame[1][0] < 0 or
+            patch_corners_image_frame[1][1] < - 1280 / 2 or 
+            patch_corners_image_frame[0][0] > 760 or
+            patch_corners_image_frame[0][1] > 1280 / 2 or
+            patch_corners_image_frame[1][0] > 760 or
+            patch_corners_image_frame[1][1] > 1280 / 2):
+            print("INVALID CORNERS", patch_corners_image_frame)
+            return None
+
+        patch = prev_image[
+            int(patch_corners_image_frame[0][1]):int(patch_corners_image_frame[1][1]),
+            int(patch_corners_image_frame[0][0]):int(patch_corners_image_frame[1][0])
+        ]
+        return patch
+
+    def process_odom_vel_data(self, data):
         for i in tqdm(range(len(data['odom']))):
             odom = data['odom'][i]
             odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
@@ -170,7 +233,7 @@ class ListenRecordData:
         img = cv2.imdecode(img, cv2.IMREAD_COLOR)
 
         output = cv2.warpPerspective(img, homography_matrix, (1280, 720))
-        output = output[420:520, 540:740]
+        # output = output[420:520, 540:740]
 
         return output
 
