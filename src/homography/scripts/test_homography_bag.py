@@ -69,7 +69,7 @@ def listener():
     odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
     image = message_filters.Subscriber('/webcam/image_raw/compressed', CompressedImage)
     # ts = message_filters.TimeSynchronizer([odom, image], 10)
-    ts = message_filters.ApproximateTimeSynchronizer([odom, image], 20, 1.0, allow_headerless=False)
+    ts = message_filters.ApproximateTimeSynchronizer([odom, image], 10, 0.1, allow_headerless=False)
     ts.registerCallback(callback)
 
     rospy.spin()

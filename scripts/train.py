@@ -69,7 +69,7 @@ class IKDModel(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.visual_ikd_model.parameters(), lr=1e-5, weight_decay=1e-5)
+        return torch.optim.AdamW(self.visual_ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
 
 class IKDDataModule(pl.LightningDataModule):
     def __init__(self, data, batch_size, history_len):
@@ -84,6 +84,19 @@ class IKDDataModule(pl.LightningDataModule):
                 self.data = data
                 self.history_len = history_len
 
+                self.data['odom'] = np.asarray(self.data['odom'])
+
+                # self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
+                # self.data['joystick'][:, 1] = self.data['joystick'][:, 1] - self.data['odom'][:, 2]
+
+                odom_mean = np.mean(self.data['odom'], axis=0)
+                odom_std = np.std(self.data['odom'], axis=0)
+                joy_mean = np.mean(self.data['joystick'], axis=0)
+                joy_std = np.std(self.data['joystick'], axis=0)
+
+                self.data['odom'] = (self.data['odom'] - odom_mean) / odom_std
+                self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
+
             def __len__(self):
                 return len(self.data['odom']) - self.history_len
 
@@ -94,7 +107,8 @@ class IKDDataModule(pl.LightningDataModule):
                 accel = self.data['accel'][idx + self.history_len - 1]
                 gyro = self.data['gyro'][idx + self.history_len - 1]
                 bevimage = self.data['image'][idx + self.history_len - 1]
-                bevimage = cv2.resize(bevimage, (128, 128), interpolation=cv2.INTER_AREA)
+                bevimage = cv2.resize(bevimage, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
+                bevimage /= 255.0
 
                 # cv2.imshow('disp', bevimage)
                 # cv2.waitKey(0)
@@ -118,8 +132,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='rosbag parser')
     parser.add_argument('--rosbag_path', type=str, default='data/ahgroad_new.bag')
     parser.add_argument('--max_epochs', type=int, default=1000)
-    parser.add_argument('--history_len', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--history_len', type=int, default=4)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--hidden_size', type=int, default=32)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -127,7 +142,7 @@ if __name__ == '__main__':
     # accel + gyro + odom*history
     model = IKDModel(input_size=3 + 3 + 3*(args.history_len+1),
                      output_size=2,
-                     hidden_size=256,
+                     hidden_size=args.hidden_size,
                      history_len=args.history_len)
 
     model = model.to(device)
@@ -142,7 +157,7 @@ if __name__ == '__main__':
 
     keys = ['rgb', 'odom', 'accel', 'gyro', 'joystick']
 
-    data = pickle.load(open('data/mydata.pkl', 'rb'))
+    data = pickle.load(open('data/2021-11-18-17-58-56_data.pkl', 'rb'))
 
     dm = IKDDataModule(data=data, batch_size=args.batch_size, history_len=args.history_len)
 
@@ -161,6 +176,7 @@ if __name__ == '__main__':
                          callbacks=[early_stopping_cb, model_checkpoint_cb],
                          log_every_n_steps=10,
                          distributed_backend='ddp',
+                         stochastic_weight_avg=False,
                          logger=True,
                          )
 

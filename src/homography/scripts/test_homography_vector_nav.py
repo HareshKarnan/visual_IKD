@@ -31,13 +31,13 @@ def callback(imu, image):
     R_imu_world = R_imu_world.as_euler('xyz', degrees=True)
     # R_imu_world[0] = 0.5
     # R_imu_world[1] = 0.
-    R_imu_world[0], R_imu_world[1] = -R_imu_world[0], -R_imu_world[1]
+    R_imu_world[0], R_imu_world[1] = -R_imu_world[0], R_imu_world[1]
     R_imu_world[2] = 0.
 
     R_imu_world = R_imu_world
     R_imu_world = R.from_euler('xyz', R_imu_world, degrees=True)
 
-    R_cam_imu = R.from_euler("xyz", [-90, -90, 0], degrees=True)
+    R_cam_imu = R.from_euler("xyz", [90, -90, 0], degrees=True)
     R1 = R_cam_imu * R_imu_world
     R1 = R1.as_matrix()
 
@@ -56,8 +56,8 @@ def callback(imu, image):
 
     output = cv2.warpPerspective(img, homography_matrix, (1280, 720))
 
-    img = cv2.resize(img, (640, 360))
-    output = cv2.resize(output, (640, 360))
+    # img = cv2.resize(img, (640, 360))
+    # output = cv2.resize(output, (640, 360))
     cv2.imshow('disp', np.hstack((img, output)))
     cv2.waitKey(1)
 
