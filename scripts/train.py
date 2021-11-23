@@ -52,6 +52,7 @@ class IKDModel(pl.LightningModule):
         odom, joystick, accel, gyro, bevimage = batch
         bevimage = bevimage.permute(0, 3, 1, 2)
 
+        # apply augmentation here to the terrain patch
         bevimage = self.transform(bevimage)
 
         non_visual_input = torch.cat((odom, accel, gyro), dim=1)

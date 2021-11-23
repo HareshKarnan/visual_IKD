@@ -3,12 +3,12 @@
 <!--    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/2021-11-16-10-28-31.bag" />-->
 <!--    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/ahg_indoor_bags/train1.bag" />-->
 <!--    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/2021-11-18-18-09-34.bag" />-->
-<!--    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/short.bag" />-->
+    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/short.bag" />
 <!--    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/ahg_indoor_bags/train1.bag" />-->
 <!--    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/ahg_indoor_bags/train2.bag" />-->
 <!--    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/ahg_indoor_bags/train3.bag" />-->
 <!--    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/ahg_indoor_bags/test1.bag" />-->
-    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/ahg_indoor_bags/test2.bag" />
+<!--    <param name="rosbag_path" type="str" value="$(find rosbag_sync_data_rerecorder)/data/ahg_indoor_bags/test2.bag" />-->
 
     <node name="rosbag_data_recorder" pkg="rosbag_sync_data_rerecorder" type="rosbag_data_recorder.py" output="screen" />
 </launch>

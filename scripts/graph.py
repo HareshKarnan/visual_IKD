@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = IKDModel.load_from_checkpoint('models/23-11-2021-12-18-53.ckpt')
+    model = IKDModel.load_from_checkpoint('models/no_vision.ckpt')
 
     model = model.to(device)
 

@@ -7,7 +7,6 @@ import random
 from PIL import Image, ImageOps, ImageFilter
 from torchvision.transforms.functional import crop
 from torch import nn
-import torch.nn.functional as F
 
 def parse_bag_with_img(bagfile_path, topics_to_read=None, max_time=None):
     bag = rosbag.Bag(bagfile_path, 'r')
@@ -156,6 +155,3 @@ class GaussianBlur(object):
 def croppatchinfront(image):
     return crop(image, 890, 584, 56, 100)
 
-class L2Normalize(nn.Module):
-    def forward(self, x):
-        return F.normalize(x, p=2, dim=1) # L2 normalize
