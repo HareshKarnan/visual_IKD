@@ -23,55 +23,25 @@ from scripts.model import VisualIKDNet
 import torch.nn.functional as F
 from tqdm import tqdm
 from scripts.train import IKDModel
+from scripts.dataset import MyDataset
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='rosbag parser')
     parser.add_argument('--max_epochs', type=int, default=1000)
-    parser.add_argument('--history_len', type=int, default=4)
+    parser.add_argument('--history_len', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--hidden_size', type=int, default=32)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = IKDModel.load_from_checkpoint('models/18-11-2021-21-22-56.ckpt')
+    model = IKDModel.load_from_checkpoint('models/23-11-2021-12-18-53.ckpt')
 
     model = model.to(device)
 
-    data = pickle.load(open('data/2021-11-18-17-58-56_data.pkl', 'rb'))
+    data = pickle.load(open('/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/test1_data.pkl', 'rb'))
 
-    class MyAwesomeDataset(Dataset):
-        def __init__(self, data, history_len):
-            self.data = data
-            self.history_len = history_len
-
-            odom_mean = np.mean(self.data['odom'], axis=0)
-            odom_std = np.std(self.data['odom'], axis=0)
-            joy_mean = np.mean(self.data['joystick'], axis=0)
-            joy_std = np.std(self.data['joystick'], axis=0)
-
-            self.data['odom'] = (self.data['odom'] - odom_mean) / odom_std
-            self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
-
-        def __len__(self):
-            return len(self.data['odom']) - self.history_len
-
-        def __getitem__(self, idx):
-            # history of odoms + next state
-            odom_history = self.data['odom'][idx:idx + self.history_len + 1]
-            joystick = self.data['joystick'][idx + self.history_len - 1]
-            accel = self.data['accel'][idx + self.history_len - 1]
-            gyro = self.data['gyro'][idx + self.history_len - 1]
-            bevimage = self.data['image'][idx + self.history_len - 1]
-            bevimage = cv2.resize(bevimage, (64, 64), interpolation=cv2.INTER_AREA)
-            cv2.imshow('image', bevimage)
-            cv2.waitKey(1)
-
-            bevimage = bevimage.astype(np.float32) / 255.0
-
-            return np.asarray(odom_history).flatten(), joystick, accel, gyro, bevimage
-
-    dataset = MyAwesomeDataset(data, args.history_len)
+    dataset = MyDataset(data, args.history_len)
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
                             drop_last=not (len(dataset) % args.batch_size == 0.0))
 
@@ -80,6 +50,7 @@ if __name__ == '__main__':
         with torch.no_grad():
             bevimage = bevimage.permute(0, 3, 1, 2).to(device)
             non_visual_input = torch.cat((odom_history, accel, gyro), dim=1).to(device)
+            # output = model.forward(non_visual_input.float(), bevimage.float())
             output = model.forward(non_visual_input.float(), bevimage.float())
         output = output.cpu().numpy()
 

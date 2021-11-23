@@ -1,3 +1,5 @@
+import glob
+import os.path
 import pickle
 
 import pytorch_lightning as pl
@@ -13,25 +15,28 @@ from torchvision.transforms import transforms
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
-from torchvision.transforms.functional import crop
 from scripts.utils import GaussianBlur
 import cv2
 from scipy.spatial.transform import Rotation as R
 from scripts.quaternion import *
 from scripts.model import VisualIKDNet
-import torch.nn.functional as F
-
-def croppatchinfront(image):
-    return crop(image, 890, 584, 56, 100)
-
-class L2Normalize(nn.Module):
-    def forward(self, x):
-        return F.normalize(x, p=2, dim=1) # L2 normalize
+from torch.utils.data import ConcatDataset
+from scripts.dataset import MyDataset
 
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size, hidden_size=64, history_len=1):
         super(IKDModel, self).__init__()
         self.visual_ikd_model = VisualIKDNet(input_size, output_size, hidden_size)
+
+        self.transform = transforms.Compose([
+            transforms.RandomResizedCrop(64),
+            transforms.RandomHorizontalFlip(p=0.5),
+            # transforms.RandomApply(
+            #     [transforms.ColorJitter(brightness=0.4, contrast=0.4,
+            #                             saturation=0.2, hue=0.1)],
+            #     p=0.8
+            # ),
+        ])
 
         self.save_hyperparameters('input_size',
                                   'output_size',
@@ -46,6 +51,8 @@ class IKDModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         odom, joystick, accel, gyro, bevimage = batch
         bevimage = bevimage.permute(0, 3, 1, 2)
+
+        bevimage = self.transform(bevimage)
 
         non_visual_input = torch.cat((odom, accel, gyro), dim=1)
 
@@ -69,56 +76,38 @@ class IKDModel(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.visual_ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
+        return torch.optim.AdamW(self.visual_ikd_model.parameters(), lr=3e-5, weight_decay=1e-5)
 
 class IKDDataModule(pl.LightningDataModule):
-    def __init__(self, data, batch_size, history_len):
+    def __init__(self, data_path, batch_size, history_len):
         super(IKDDataModule, self).__init__()
-
-        self.data = data
+        if not os.path.exists(data_path):
+            raise Exception("Data does not exist at : " + data_path)
         self.batch_size = batch_size
         self.history_len = history_len
 
-        class MyDataset(Dataset):
-            def __init__(self, data, history_len):
-                self.data = data
-                self.history_len = history_len
+        # train dataset
+        pickle_files = glob.glob(os.path.join(data_path, "train*_data.pkl"))
+        print('Found ', len(pickle_files), ' train dataset files')
+        datasets = []
+        for pickle_file in pickle_files:
+            data = pickle.load(open(pickle_file, 'rb'))
+            datasets.append(MyDataset(data, self.history_len))
+        self.training_dataset = ConcatDataset(datasets)
 
-                self.data['odom'] = np.asarray(self.data['odom'])
+        # validation dataset
+        pickle_files = glob.glob(os.path.join(data_path, "test*_data.pkl"))
+        print('Found ', len(pickle_files), ' validation dataset files')
+        datasets = []
+        for pickle_file in pickle_files:
+            data = pickle.load(open(pickle_file, 'rb'))
+            datasets.append(MyDataset(data, self.history_len))
+        self.validation_dataset = ConcatDataset(datasets)
 
-                # self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
-                # self.data['joystick'][:, 1] = self.data['joystick'][:, 1] - self.data['odom'][:, 2]
+        print('Num training data points : ', len(self.training_dataset))
+        print('Num validation data points : ', len(self.validation_dataset))
 
-                odom_mean = np.mean(self.data['odom'], axis=0)
-                odom_std = np.std(self.data['odom'], axis=0)
-                joy_mean = np.mean(self.data['joystick'], axis=0)
-                joy_std = np.std(self.data['joystick'], axis=0)
-
-                self.data['odom'] = (self.data['odom'] - odom_mean) / odom_std
-                self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
-
-            def __len__(self):
-                return len(self.data['odom']) - self.history_len
-
-            def __getitem__(self, idx):
-                # history of odoms + next state
-                odom_history = self.data['odom'][idx:idx+self.history_len + 1]
-                joystick = self.data['joystick'][idx + self.history_len - 1]
-                accel = self.data['accel'][idx + self.history_len - 1]
-                gyro = self.data['gyro'][idx + self.history_len - 1]
-                bevimage = self.data['image'][idx + self.history_len - 1]
-                bevimage = cv2.resize(bevimage, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
-                bevimage /= 255.0
-
-                # cv2.imshow('disp', bevimage)
-                # cv2.waitKey(0)
-
-                return np.asarray(odom_history).flatten(), joystick, accel, gyro, bevimage
-
-        self.dataset = MyDataset(self.data, history_len)
-        print('Total data points : ', len(self.dataset))
-
-        self.validation_dataset, self.training_dataset = random_split(self.dataset, [int(0.2*len(self.dataset)), len(self.dataset) - int(0.2*len(self.dataset))])
+        # self.validation_dataset, self.training_dataset = random_split(self.dataset, [int(0.2*len(self.dataset)), len(self.dataset) - int(0.2*len(self.dataset))])
 
     def train_dataloader(self):
         return DataLoader(self.training_dataset, batch_size=self.batch_size, shuffle=True,
@@ -132,9 +121,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='rosbag parser')
     parser.add_argument('--rosbag_path', type=str, default='data/ahgroad_new.bag')
     parser.add_argument('--max_epochs', type=int, default=1000)
-    parser.add_argument('--history_len', type=int, default=4)
+    parser.add_argument('--history_len', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--hidden_size', type=int, default=32)
+    parser.add_argument('--data_path', type=str, default="/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -147,19 +137,7 @@ if __name__ == '__main__':
 
     model = model.to(device)
 
-    topics_to_read = [
-        '/camera/odom/sample',
-        '/joystick',
-        '/camera/accel/sample',
-        '/camera/gyro/sample',
-        '/webcam/image_raw/compressed'
-    ]
-
-    keys = ['rgb', 'odom', 'accel', 'gyro', 'joystick']
-
-    data = pickle.load(open('data/2021-11-18-17-58-56_data.pkl', 'rb'))
-
-    dm = IKDDataModule(data=data, batch_size=args.batch_size, history_len=args.history_len)
+    dm = IKDDataModule(data_path=args.data_path, batch_size=args.batch_size, history_len=args.history_len)
 
     early_stopping_cb = EarlyStopping(monitor='val_loss',
                                       mode='min',

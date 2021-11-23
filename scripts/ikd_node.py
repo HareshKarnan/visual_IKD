@@ -36,23 +36,27 @@ class LiveDataProcessor(object):
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
         accel = message_filters.Subscriber('/camera/accel/sample', Imu)
         gyro = message_filters.Subscriber('/camera/gyro/sample', Imu)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, accel, gyro], 10, 0.1, allow_headerless=True)
+
+        vectornavimu = message_filters.Subscriber("/vectornav/IMU", Imu)
+
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, accel, gyro, vectornavimu], 20, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
 
         self.data = {'image': [], 'odom': [], 'accel': [], 'gyro': []}
         self.n = 0
 
-    def callback(self, image, odom, accel, gyro):
+    def callback(self, image, odom, accel, gyro, vectornavimu):
         self.n += 1
         print('Received messages :: ', self.n)
 
         # convert front cam image to top cam image
-        bevimage = self.camera_imu_homography(odom, image)
+        bevimage = self.camera_imu_homography(vectornavimu, image)
 
         # convert odom to numpy array
         odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
 
-        self.data['image'] = cv2.resize(bevimage, (128, 128), interpolation=cv2.INTER_AREA)
+        self.data['image'] = cv2.resize(bevimage, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
+        self.data['image'] = self.data['image']/255.0
         self.data['accel'] = np.array([accel.linear_acceleration.x, accel.linear_acceleration.y, accel.linear_acceleration.z])
         self.data['gyro'] = np.array([gyro.angular_velocity.x, gyro.angular_velocity.y, gyro.angular_velocity.z])
 
@@ -73,26 +77,23 @@ class LiveDataProcessor(object):
         H12 /= H12[2, 2]
         return H12
 
-    def camera_imu_homography(self, odom, image):
-        orientation_quat = [odom.pose.pose.orientation.x,
-                            odom.pose.pose.orientation.y,
-                            odom.pose.pose.orientation.z,
-                            odom.pose.pose.orientation.w]
-        # z_correction = odom.pose.pose.position.z
+    def camera_imu_homography(self, imu, image):
+        orientation_quat = [imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w]
 
         C_i = np.array(
-            [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0, 1.0]).reshape(
+            [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0,
+             1.0]).reshape(
             (3, 3))
 
         R_imu_world = R.from_quat(orientation_quat)
         R_imu_world = R_imu_world.as_euler('xyz', degrees=True)
-        R_imu_world[0], R_imu_world[1] = R_imu_world[0], -R_imu_world[1]
+        R_imu_world[0], R_imu_world[1] = -R_imu_world[0], R_imu_world[1]
         R_imu_world[2] = 0.
 
         R_imu_world = R_imu_world
         R_imu_world = R.from_euler('xyz', R_imu_world, degrees=True)
 
-        R_cam_imu = R.from_euler("xyz", [-90, 90, 0], degrees=True)
+        R_cam_imu = R.from_euler("xyz", [90, -90, 0], degrees=True)
         R1 = R_cam_imu * R_imu_world
         R1 = R1.as_matrix()
 
@@ -110,7 +111,7 @@ class LiveDataProcessor(object):
         img = cv2.imdecode(img, cv2.IMREAD_COLOR)
 
         output = cv2.warpPerspective(img, homography_matrix, (1280, 720))
-        output = output[420:520, 540:740]
+        # output = output[420:520, 540:740]
 
         return output
 

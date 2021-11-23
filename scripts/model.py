@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from scripts.utils import L2Normalize
 
 class VisualIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
@@ -14,12 +15,13 @@ class VisualIKDNet(nn.Module):
             nn.BatchNorm2d(128), nn.PReLU(), # 7x7
             nn.Flatten(),
             nn.Linear(7*7*128, hidden_size), nn.Tanh(),
-            nn.Dropout(0.5),
-            nn.Linear(hidden_size, 16), nn.Tanh(),
+            nn.Linear(hidden_size, 16), nn.ReLU(),
+            L2Normalize()
         )
 
         self.trunk = nn.Sequential(
             nn.Linear(input_size + 16, hidden_size), nn.ReLU(),
+            # nn.Linear(input_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size)
         )
@@ -27,4 +29,5 @@ class VisualIKDNet(nn.Module):
     def forward(self, non_image, image):
         visual_embedding = self.visual_encoder(image)
         output = self.trunk(torch.cat((non_image, visual_embedding), dim=1))
+        # output = self.trunk(non_image)
         return output

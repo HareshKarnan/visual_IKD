@@ -40,7 +40,8 @@ class ListenRecordData:
         ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 20, 0.05, allow_headerless=False)
         ts.registerCallback(self.callback)
 
-        self.data = {'image': [], 'odom': [], 'joystick': [], 'accel': [], 'gyro': [], 'vectornav': [], 'patch': []}
+        # self.data = {'image': [], 'odom': [], 'joystick': [], 'accel': [], 'gyro': [], 'vectornav': [], 'patch': []}
+        self.data = {'image': [], 'odom': [], 'joystick': [], 'accel': [], 'gyro': [], 'vectornav': []}
 
     def callback(self, image, odom, joystick, accel, gyro, vectornavimu):
         # print('Received messages :: ', image.header.seq)
@@ -62,37 +63,45 @@ class ListenRecordData:
         # process bev image
         print('Processing bev image')
         self.data = self.process_bev_image(self.data)
-
-        print('Processing patches')
-        self.data = self.process_patches(self.data)
+        # print('Processing patches')
+        # self.data = self.process_patches(self.data)
+        # now remove the image data
+        # self.data.pop('image')
 
         # process odom
         print('Processing odom data')
         self.data = self.process_odom_vel_data(self.data)
+
+        print('Number of data samples : ', len(self.data['image']))
+
+        cprint('Processed all data. Saving it to disk..', 'yellow')
 
         # save data
         cprint('Saving data.. ', 'yellow')
         pickle.dump(self.data, open(self.save_data_path, 'wb'))
         cprint('Saved data successfully ', 'yellow', attrs=['blink'])
 
-        print('Number of data samples : ', len(self.data['image']))
         exit(0)
 
     def process_bev_image(self, data):
         for i in tqdm(range(len(data['image']))):
             bevimage = self.camera_imu_homography(data['vectornav'][i], data['image'][i])
-            data['image'][i] = bevimage
+            data['image'][i] = cv2.resize(bevimage, (64, 64), interpolation=cv2.INTER_AREA)
         return data
 
     def process_patches(self, data):
         for i in tqdm(range(len(data['image']))):
             curr_odom = self.data['odom'][i]
+            curr_image = self.data['image'][i]
             patch = None
             for j in range(max(i - 10, 0), i):
                 prev_image = self.data['image'][j]
                 prev_odom = self.data['odom'][j]
 
-                patch = self.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, prev_image)
+                prev_image = cv2.putText(prev_image, 'idx: '+str(j), (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                curr_image = cv2.putText(curr_image, 'idx: '+str(i), (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+                patch = self.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_image, prev_image)
                 if patch is not None:
                     print('Patch found For location {} from location {}'.format(i, j))
                     break
@@ -101,7 +110,30 @@ class ListenRecordData:
             data['patch'].append(patch)
         return data
 
-    def get_patch_from_odom_delta(self, curr_pos, prev_pos, prev_image):
+    # def get_patch_from_odom_delta(self, curr_pos, prev_pos, curr_image, prev_image):
+    #
+    #     curr_pos_np = np.array([curr_pos.position.x, curr_pos.position.y, 1])
+    #     curr_quat = np.array([curr_pos.orientation.x, curr_pos.orientation.y, curr_pos.orientation.z, curr_pos.orientation.w])
+    #     curr_euler_z = R.from_quat(curr_quat).as_euler('xyz', degrees=True)[2]
+    #
+    #
+    #     prev_pos_np = np.array([prev_pos.position.x, prev_pos.position.y, 1])
+    #     prev_quat = np.array([prev_pos.orientation.x, prev_pos.orientation.y, prev_pos.orientation.z, prev_pos.orientation.w])
+    #     prev_euler_z = R.from_quat(prev_quat).as_euler('xyz', degrees=True)[2]
+    #
+    #     print('curr_euler_z : ', curr_euler_z)
+    #     print('prev_euler_z : ', prev_euler_z)
+    #     print('diff euler z : ', curr_euler_z - prev_euler_z)
+    #     import pdb; pdb.set_trace()
+    #
+    #     # cv2.imshow('prev_curr_images', np.hstack((prev_image, curr_image)))
+    #     # cv2.waitKey(0)
+    #
+    #     transform_curr_to_prev = np.linalg.inv(self.get_transform_matrix(prev_pos_np, curr_pos_np))
+    #
+    #     return None
+
+    def get_patch_from_odom_delta_deprec(self, curr_pos, prev_pos, curr_image, prev_image):
         curr_pos_np = np.array([curr_pos.position.x, curr_pos.position.y, 1])
         prev_pos_transform = np.zeros((3, 3))
         z_angle = R.from_quat([prev_pos.orientation.x, prev_pos.orientation.y, prev_pos.orientation.z, prev_pos.orientation.w]).as_euler('xyz', degrees=False)[2]
@@ -166,13 +198,13 @@ class ListenRecordData:
             (0, 255, 0),
             2
         )
-        cv2.imshow('vis_img', vis_img)
+        cv2.imshow('vis_img', np.hstack((prev_image, vis_img)))
         cv2.waitKey(0)
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         if (patch_corners_image_frame[0][0] < 0 or
             patch_corners_image_frame[0][1] < - 1280 / 2 or
             patch_corners_image_frame[1][0] < 0 or
-            patch_corners_image_frame[1][1] < - 1280 / 2 or 
+            patch_corners_image_frame[1][1] < - 1280 / 2 or
             patch_corners_image_frame[0][0] > 760 or
             patch_corners_image_frame[0][1] > 1280 / 2 or
             patch_corners_image_frame[1][0] > 760 or
