@@ -17,6 +17,10 @@ from scipy.spatial.transform import Rotation as R
 import signal
 import subprocess
 
+
+PATCH_SIZE = 64
+PATCH_EPSILON = 0.25 * PATCH_SIZE * PATCH_SIZE
+
 class ListenRecordData:
     def __init__(self, config_path, save_data_path, rosbag_play_process):
         self.data = []
@@ -40,7 +44,7 @@ class ListenRecordData:
         ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 20, 0.05, allow_headerless=False)
         ts.registerCallback(self.callback)
 
-        self.data = {'image': [], 'odom': [], 'joystick': [], 'accel': [], 'gyro': [], 'vectornav': [], 'patch': []}
+        self.data = {'image': [], 'src_image': [], 'odom': [], 'joystick': [], 'accel': [], 'gyro': [], 'vectornav': [], 'patch': []}
 
     def callback(self, image, odom, joystick, accel, gyro, vectornavimu):
         # print('Received messages :: ', image.header.seq)
@@ -80,19 +84,20 @@ class ListenRecordData:
 
     def process_bev_image(self, data):
         for i in tqdm(range(len(data['image']))):
-            bevimage = self.camera_imu_homography(data['vectornav'][i], data['image'][i])
+            bevimage, src_image = self.camera_imu_homography(data['vectornav'][i], data['image'][i])
             data['image'][i] = bevimage
+            data['src_image'].append(src_image)
         return data
 
     def process_patches(self, data):
         for i in tqdm(range(len(data['image']))):
             curr_odom = self.data['odom'][i]
             patch = None
-            for j in range(max(i - 10, 0), i):
+            for j in range(i, max(i - 15, 0), -1):
                 prev_image = self.data['image'][j]
                 prev_odom = self.data['odom'][j]
-
-                patch = self.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, prev_image)
+                cv2.imshow('src_image', self.data['src_image'][i])
+                patch = self.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, prev_image, self.data['image'][i])
                 if patch is not None:
                     print('Patch found For location {} from location {}'.format(i, j))
                     break
@@ -101,7 +106,7 @@ class ListenRecordData:
             data['patch'].append(patch)
         return data
 
-    def get_patch_from_odom_delta(self, curr_pos, prev_pos, prev_image):
+    def get_patch_from_odom_delta(self, curr_pos, prev_pos, prev_image, curr_image):
         curr_pos_np = np.array([curr_pos.position.x, curr_pos.position.y, 1])
         prev_pos_transform = np.zeros((3, 3))
         z_angle = R.from_quat([prev_pos.orientation.x, prev_pos.orientation.y, prev_pos.orientation.z, prev_pos.orientation.w]).as_euler('xyz', degrees=False)[2]
@@ -166,24 +171,24 @@ class ListenRecordData:
             (0, 255, 0),
             2
         )
-        cv2.imshow('vis_img', vis_img)
-        cv2.waitKey(0)
-        import pdb; pdb.set_trace()
-        if (patch_corners_image_frame[0][0] < 0 or
-            patch_corners_image_frame[0][1] < - 1280 / 2 or
-            patch_corners_image_frame[1][0] < 0 or
-            patch_corners_image_frame[1][1] < - 1280 / 2 or 
-            patch_corners_image_frame[0][0] > 760 or
-            patch_corners_image_frame[0][1] > 1280 / 2 or
-            patch_corners_image_frame[1][0] > 760 or
-            patch_corners_image_frame[1][1] > 1280 / 2):
-            print("INVALID CORNERS", patch_corners_image_frame)
+        cv2.imshow('vis_img', np.hstack((curr_image, vis_img)))
+
+        persp = cv2.getPerspectiveTransform(np.float32(patch_corners_image_frame), np.float32([[0, 0], [63, 0], [63, 63], [0, 63]]))
+
+        patch = cv2.warpPerspective(
+            prev_image,
+            persp,
+            (64, 64)
+        )
+
+        zero_count = np.logical_and(np.logical_and(patch[:, :, 0] == 0, patch[:, :, 1] == 0), patch[:, :, 2] == 0)
+
+        if np.sum(zero_count) > PATCH_EPSILON:
+            print("INVALID PATCH", np.sum(zero_count))
             return None
 
-        patch = prev_image[
-            int(patch_corners_image_frame[0][1]):int(patch_corners_image_frame[1][1]),
-            int(patch_corners_image_frame[0][0]):int(patch_corners_image_frame[1][0])
-        ]
+        cv2.imshow('patch', patch)
+        cv2.waitKey(0)
         return patch
 
     def process_odom_vel_data(self, data):
@@ -276,9 +281,10 @@ class ListenRecordData:
         img = cv2.imdecode(img, cv2.IMREAD_COLOR)
 
         output = cv2.warpPerspective(img, homography_matrix, (1280, 720))
-        # output = output[420:520, 540:740]
+        # flip output horizontally
+        output = cv2.flip(output, 1)
 
-        return output
+        return output, img
 
     @staticmethod
     def process_accel_gyro_data(data):
