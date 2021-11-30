@@ -19,7 +19,8 @@ import subprocess
 
 
 PATCH_SIZE = 64
-PATCH_EPSILON = 0.25 * PATCH_SIZE * PATCH_SIZE
+PATCH_EPSILON = 0.45 * PATCH_SIZE * PATCH_SIZE
+ACTUATION_LATENCY = 0.1
 
 class ListenRecordData:
     def __init__(self, config_path, save_data_path, rosbag_play_process):
@@ -97,7 +98,7 @@ class ListenRecordData:
                 prev_image = self.data['image'][j]
                 prev_odom = self.data['odom'][j]
                 cv2.imshow('src_image', self.data['src_image'][i])
-                patch = self.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, prev_image, self.data['image'][i])
+                patch = self.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist, prev_odom.twist.twist, prev_image, self.data['image'][i])
                 if patch is not None:
                     print('Patch found For location {} from location {}'.format(i, j))
                     break
@@ -106,7 +107,7 @@ class ListenRecordData:
             data['patch'].append(patch)
         return data
 
-    def get_patch_from_odom_delta(self, curr_pos, prev_pos, prev_image, curr_image):
+    def get_patch_from_odom_delta(self, curr_pos, prev_pos, curr_vel, prev_vel, prev_image, curr_image):
         curr_pos_np = np.array([curr_pos.position.x, curr_pos.position.y, 1])
         prev_pos_transform = np.zeros((3, 3))
         z_angle = R.from_quat([prev_pos.orientation.x, prev_pos.orientation.y, prev_pos.orientation.z, prev_pos.orientation.w]).as_euler('xyz', degrees=False)[2]
@@ -116,11 +117,13 @@ class ListenRecordData:
         inv_pos_transform = np.linalg.inv(prev_pos_transform)
         curr_z_angle = R.from_quat([curr_pos.orientation.x, curr_pos.orientation.y, curr_pos.orientation.z, curr_pos.orientation.w]).as_euler('xyz', degrees=False)[2]
         curr_z_rotation = R.from_euler('xyz', [0, 0, curr_z_angle]).as_matrix()
+        projected_loc_np  = curr_pos_np + ACTUATION_LATENCY * (curr_z_rotation @ np.array([curr_vel.linear.x, curr_vel.linear.y, 0]))
+
         patch_corners = [
-            curr_pos_np + curr_z_rotation @ np.array([0.3, 0.3, 0]),
-            curr_pos_np + curr_z_rotation @ np.array([0.3, -0.3, 0]),
-            curr_pos_np + curr_z_rotation @ np.array([-0.3, -0.3, 0]),
-            curr_pos_np + curr_z_rotation @ np.array([-0.3, 0.3, 0])
+            projected_loc_np + curr_z_rotation @ np.array([0.3, 0.3, 0]),
+            projected_loc_np + curr_z_rotation @ np.array([0.3, -0.3, 0]),
+            projected_loc_np + curr_z_rotation @ np.array([-0.3, -0.3, 0]),
+            projected_loc_np + curr_z_rotation @ np.array([-0.3, 0.3, 0])
         ]
         patch_corners_prev_frame = [
             inv_pos_transform @ patch_corners[0],
@@ -134,8 +137,8 @@ class ListenRecordData:
             (patch_corners_prev_frame[2] * 200).astype(np.int),
             (patch_corners_prev_frame[3] * 200).astype(np.int),
         ]
-        # TODO: FIGURE THIS OUT (x vs y in image vs local frame)
-        CENTER = np.array((760, 640))
+        
+        CENTER = np.array((720, 640))
         patch_corners_image_frame = [
             CENTER + np.array((-scaled_patch_corners[0][1], -scaled_patch_corners[0][0])),
             CENTER + np.array((-scaled_patch_corners[1][1], -scaled_patch_corners[1][0])),
@@ -143,6 +146,8 @@ class ListenRecordData:
             CENTER + np.array((-scaled_patch_corners[3][1], -scaled_patch_corners[3][0]))
         ]
         vis_img = prev_image.copy()
+
+        # draw the patch rectangle
         cv2.line(
             vis_img,
             (patch_corners_image_frame[0][0], patch_corners_image_frame[0][1]),
@@ -171,7 +176,36 @@ class ListenRecordData:
             (0, 255, 0),
             2
         )
-        cv2.imshow('vis_img', np.hstack((curr_image, vis_img)))
+        # draw movement vector
+        mov_start = curr_pos_np
+        mov_end = curr_pos_np + (projected_loc_np - curr_pos_np) * 5
+
+        head_start = curr_pos_np
+        head_end = curr_pos_np + curr_z_rotation @ np.array([0.25, 0, 0])
+
+        def draw_arrow(arrow_start, arrow_end, color):
+            arrow_start_prev_frame = inv_pos_transform @ arrow_start
+            arrow_end_prev_frame = inv_pos_transform @ arrow_end
+            scaled_arrow_start = (arrow_start_prev_frame * 200).astype(np.int)
+            scaled_arrow_end = (arrow_end_prev_frame * 200).astype(np.int)
+            arrow_start_image_frame = CENTER + np.array((-scaled_arrow_start[1], -scaled_arrow_start[0]))
+            arrow_end_image_frame = CENTER + np.array((-scaled_arrow_end[1], -scaled_arrow_end[0]))
+
+            cv2.arrowedLine(
+                vis_img,
+                (arrow_start_image_frame[0], arrow_start_image_frame[1]),
+                (arrow_end_image_frame[0], arrow_end_image_frame[1]),
+                color,
+                3
+            )
+
+        draw_arrow(mov_start, mov_end, (255, 0, 0))
+        draw_arrow(head_start, head_end, (0, 0, 255))
+
+        projected_loc_prev_frame = inv_pos_transform @ projected_loc_np
+        scaled_projected_loc = (projected_loc_prev_frame * 200).astype(np.int)
+        projected_loc_image_frame = CENTER + np.array((-scaled_projected_loc[1], -scaled_projected_loc[0]))
+        cv2.circle(vis_img, (projected_loc_image_frame[0], projected_loc_image_frame[1]), 3, (0, 255, 255))
 
         persp = cv2.getPerspectiveTransform(np.float32(patch_corners_image_frame), np.float32([[0, 0], [63, 0], [63, 63], [0, 63]]))
 
@@ -187,8 +221,10 @@ class ListenRecordData:
             print("INVALID PATCH", np.sum(zero_count))
             return None
 
+        cv2.imshow('vis_img', np.hstack((curr_image, vis_img)))
         cv2.imshow('patch', patch)
         cv2.waitKey(0)
+        
         return patch
 
     def process_odom_vel_data(self, data):
