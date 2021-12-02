@@ -47,6 +47,7 @@ class ListenRecordData:
         ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 20, 0.05, allow_headerless=False)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
+        self.counter = 0
 
         self.msg_data = {
             'image_msg': [],
@@ -67,15 +68,17 @@ class ListenRecordData:
         self.msg_data['accel_msg'].append(accel)
         self.msg_data['gyro_msg'].append(gyro)
         self.msg_data['vectornav'].append(vectornavimu)
+        self.counter += 1
 
-        
-        if (len(self.msg_data['image_msg']) >= BATCH_SIZE):
-            print('Received messages :: ', len(self.msg_data), self.batch_idx)
+        if (len(self.msg_data['image_msg']) > BATCH_SIZE):
             for key in self.msg_data.keys():
-                self.msg_data[key] = self.msg_data[key][len(self.msg_data['image_msg']) - BATCH_SIZE:]
+                self.msg_data[key] = self.msg_data[key][len(self.msg_data[key]) - BATCH_SIZE:]
+        
+        if (self.counter % BATCH_SIZE == 0):
             self.batch_idx += 1
-
+            print('Received messages :: ', len(self.msg_data), self.batch_idx)
             self.save_data(copy.deepcopy(self.msg_data), self.batch_idx)
+
 
     def save_data(self, msg_data, batch_idx):
         data = {}
@@ -253,7 +256,7 @@ class ListenRecordData:
 
         cv2.imshow('vis_img', np.hstack((curr_image, vis_img)))
         cv2.imshow('patch', patch)
-        # cv2.waitKey(5)
+        cv2.waitKey(0)
         
         return patch
 
