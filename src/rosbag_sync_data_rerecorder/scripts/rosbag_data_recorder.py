@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os.path
+import copy
 from logging import root
 import pickle
 import numpy as np
@@ -21,6 +22,7 @@ import subprocess
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.45 * PATCH_SIZE * PATCH_SIZE
 ACTUATION_LATENCY = 0.1
+BATCH_SIZE = 64
 
 class ListenRecordData:
     def __init__(self, config_path, save_data_path, rosbag_play_process):
@@ -44,70 +46,98 @@ class ListenRecordData:
         joystick = message_filters.Subscriber('/joystick', Joy)
         ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 20, 0.05, allow_headerless=False)
         ts.registerCallback(self.callback)
+        self.batch_idx = 0
 
-        self.data = {'image': [], 'src_image': [], 'odom': [], 'joystick': [], 'accel': [], 'gyro': [], 'vectornav': [], 'patch': []}
-
+        self.msg_data = {
+            'image_msg': [],
+            'src_image': [],
+            'odom_msg': [],
+            'joystick_msg': [],
+            'accel_msg': [],
+            'gyro_msg': [],
+            'vectornav': [],
+        }
+        
     def callback(self, image, odom, joystick, accel, gyro, vectornavimu):
         # print('Received messages :: ', image.header.seq)
     
-        self.data['image'].append(image)
-        self.data['odom'].append(odom)
-        self.data['joystick'].append(joystick)
-        self.data['accel'].append(accel)
-        self.data['gyro'].append(gyro)
-        self.data['vectornav'].append(vectornavimu)
+        self.msg_data['image_msg'].append(image)
+        self.msg_data['odom_msg'].append(odom)
+        self.msg_data['joystick_msg'].append(joystick)
+        self.msg_data['accel_msg'].append(accel)
+        self.msg_data['gyro_msg'].append(gyro)
+        self.msg_data['vectornav'].append(vectornavimu)
 
-    def save_data(self):
+        
+        if (len(self.msg_data['image_msg']) >= BATCH_SIZE):
+            print('Received messages :: ', len(self.msg_data), self.batch_idx)
+            for key in self.msg_data.keys():
+                self.msg_data[key] = self.msg_data[key][len(self.msg_data['image_msg']) - BATCH_SIZE:]
+            self.batch_idx += 1
+
+            self.save_data(copy.deepcopy(self.msg_data), self.batch_idx)
+
+    def save_data(self, msg_data, batch_idx):
+        data = {}
         # process joystick
         print('Processing joystick data')
-        self.data = self.process_joystick_data(self.data, self.config)
+        data['joystick'] = self.process_joystick_data(msg_data, self.config)
         # prcess accel, gyro data
         print('Processing accel, gyro data')
-        self.data = self.process_accel_gyro_data(self.data)
+        accel, gyro = self.process_accel_gyro_data(msg_data)
+        data['accel'] = accel
+        data['gyro'] = gyro
         # process bev image
         print('Processing bev image')
-        self.data = self.process_bev_image(self.data)
+        images, src_images = self.process_bev_image(msg_data)
+        data['image'] = images
+        data['src_image'] = src_images
 
         print('Processing patches')
-        self.data = self.process_patches(self.data)
+        data['patches'] = self.process_patches(msg_data, data)
 
         # process odom
         print('Processing odom data')
-        self.data = self.process_odom_vel_data(self.data)
-
+        data['odom'] = self.process_odom_vel_data(msg_data)
+        data['vectornav'] = msg_data['vectornav']
         # save data
         cprint('Saving data.. ', 'yellow')
-        pickle.dump(self.data, open(self.save_data_path, 'wb'))
+        path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(batch_idx))
+        pickle.dump(data, open(path, 'wb'))
         cprint('Saved data successfully ', 'yellow', attrs=['blink'])
 
-        print('Number of data samples : ', len(self.data['image']))
-        exit(0)
+    @staticmethod
+    def process_bev_image(data):
+        images = []
+        src_images = []
+        for i in tqdm(range(len(data['image_msg']))):
+            bevimage, src_image = ListenRecordData.camera_imu_homography(data['vectornav'][i], data['image_msg'][i])
+            images.append(bevimage)
+            src_images.append(src_image)
+        return images, src_images
 
-    def process_bev_image(self, data):
-        for i in tqdm(range(len(data['image']))):
-            bevimage, src_image = self.camera_imu_homography(data['vectornav'][i], data['image'][i])
-            data['image'][i] = bevimage
-            data['src_image'].append(src_image)
-        return data
-
-    def process_patches(self, data):
-        for i in tqdm(range(len(data['image']))):
-            curr_odom = self.data['odom'][i]
+    @staticmethod
+    def process_patches(data, processed_data):
+        patches = []
+        for i in tqdm(range(len(processed_data['image']))):
+            curr_odom = data['odom_msg'][i]
             patch = None
             for j in range(i, max(i - 15, 0), -1):
-                prev_image = self.data['image'][j]
-                prev_odom = self.data['odom'][j]
-                cv2.imshow('src_image', self.data['src_image'][i])
-                patch = self.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist, prev_odom.twist.twist, prev_image, self.data['image'][i])
+                prev_image = processed_data['image'][j]
+                prev_odom = data['odom_msg'][j]
+                cv2.imshow('src_image', processed_data['src_image'][i])
+                patch = ListenRecordData.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist, prev_odom.twist.twist, prev_image, processed_data['image'][i])
                 if patch is not None:
                     print('Patch found For location {} from location {}'.format(i, j))
                     break
             if patch is None:
-                patch = data['image'][i][420:520, 540:740]
-            data['patch'].append(patch)
-        return data
+                print('Failed to find patch For location {}'.format(i))
+                patch = processed_data['image'][i][420:520, 540:740]
+            patches.append(patch)
+        return patches
 
-    def get_patch_from_odom_delta(self, curr_pos, prev_pos, curr_vel, prev_vel, prev_image, curr_image):
+    @staticmethod
+    def get_patch_from_odom_delta(curr_pos, prev_pos, curr_vel, prev_vel, prev_image, curr_image):
         curr_pos_np = np.array([curr_pos.position.x, curr_pos.position.y, 1])
         prev_pos_transform = np.zeros((3, 3))
         z_angle = R.from_quat([prev_pos.orientation.x, prev_pos.orientation.y, prev_pos.orientation.z, prev_pos.orientation.w]).as_euler('xyz', degrees=False)[2]
@@ -223,28 +253,30 @@ class ListenRecordData:
 
         cv2.imshow('vis_img', np.hstack((curr_image, vis_img)))
         cv2.imshow('patch', patch)
-        cv2.waitKey(0)
+        # cv2.waitKey(5)
         
         return patch
 
-    def process_odom_vel_data(self, data):
-        for i in tqdm(range(len(data['odom']))):
-            odom = data['odom'][i]
+    @staticmethod
+    def process_odom_vel_data(data):
+        odoms = []
+        for i in tqdm(range(len(data['odom_msg']))):
+            odom = data['odom_msg'][i]
             odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
-            data['odom'][i] = odom_np
-        return data
+            odoms.append(odom_np)
+        return odoms
 
     @staticmethod
     def process_joystick_data(data, config):
         # process joystick
         last_speed = 0.0
-        slipped_speeds = []
-        for i in tqdm(range(len(data['joystick']))):
-            data['joystick'][i] = data['joystick'][i].axes
+        joystick_data = []
+        for i in tqdm(range(len(data['joystick_msg']))):
+            datum = data['joystick_msg'][i].axes
             # print(data['joystick'][i])
-            steer_joystick = -data['joystick'][i][0]
-            drive_joystick = -data['joystick'][i][4]
-            turbo_mode = data['joystick'][i][2] >= 0.9
+            steer_joystick = -datum[0]
+            drive_joystick = -datum[4]
+            turbo_mode = datum[2] >= 0.9
             max_speed = turbo_mode * config['turbo_speed'] + (1 - turbo_mode) * config['normal_speed']
             speed = drive_joystick * max_speed
             steering_angle = steer_joystick * config['maxTurnRate']
@@ -261,10 +293,10 @@ class ListenRecordData:
             steering_angle = (clipped_servo - config['steering_to_servo_offset']) / config['steering_to_servo_gain']
             rot_vel = clipped_speed / config['wheelbase'] * np.tan(steering_angle)
 
-            data['joystick'][i] = [clipped_speed, rot_vel]
-        data['joystick'] = np.asarray(data['joystick'])
+            datum = [clipped_speed, rot_vel]
+            joystick_data.append(datum)
 
-        return data
+        return joystick_data
 
     @staticmethod
     def homography_camera_displacement(R1, R2, t1, t2, n1):
@@ -277,7 +309,8 @@ class ListenRecordData:
         H12 /= H12[2, 2]
         return H12
 
-    def camera_imu_homography(self, imu, image):
+    @staticmethod
+    def camera_imu_homography(imu, image):
         # orientation_quat = [odom.pose.pose.orientation.x,
         #                     odom.pose.pose.orientation.y,
         #                     odom.pose.pose.orientation.z,
@@ -309,7 +342,7 @@ class ListenRecordData:
         n = np.array([0, 0, 1]).reshape((3, 1))
         n1 = R1 @ n
 
-        H12 = self.homography_camera_displacement(R1, R2, t1, t2, n1)
+        H12 = ListenRecordData.homography_camera_displacement(R1, R2, t1, t2, n1)
         homography_matrix = C_i @ H12 @ np.linalg.inv(C_i)
         homography_matrix /= homography_matrix[2, 2]
 
@@ -324,14 +357,14 @@ class ListenRecordData:
 
     @staticmethod
     def process_accel_gyro_data(data):
-        for i in tqdm(range(len(data['accel']))):
-            accel = data['accel'][i].linear_acceleration
-            gyro = data['gyro'][i].angular_velocity
-            data['accel'][i] = [accel.x, accel.y, accel.z]
-            data['gyro'][i] = [gyro.x, gyro.y, gyro.z]
-        data['accel'] = np.asarray(data['accel'])
-        data['gyro'] = np.asarray(data['gyro'])
-        return data
+        accel_data = []
+        gyro_data = []
+        for i in tqdm(range(len(data['accel_msg']))):
+            accel = data['accel_msg'][i].linear_acceleration
+            gyro = data['gyro_msg'][i].angular_velocity
+            accel_data.append(np.asarray([accel.x, accel.y, accel.z]))
+            gyro_data.append(np.asarray([gyro.x, gyro.y, gyro.z]))
+        return accel_data, gyro_data
 
 if __name__ == '__main__':
     rospy.init_node('rosbag_data_recorder', anonymous=True)
@@ -349,7 +382,8 @@ if __name__ == '__main__':
     # start a subprocess to run the rosbag
     rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '1'])
 
-    save_data_path = rosbag_path.replace('.bag', '_data.pkl')
+    save_data_path = rosbag_path.replace('.bag', '_data/')
+    os.makedirs(save_data_path, exist_ok=True)
 
     data_recorder = ListenRecordData(config_path=config_path,
                                      save_data_path=save_data_path,
@@ -359,8 +393,6 @@ if __name__ == '__main__':
         # check if python subprocess is still running
         if rosbag_play_process.poll() is not None:
             print('rosbag_play process has stopped')
-            print('Saving data..')
-            data_recorder.save_data()
             print('Data saved successfully')
 
     rospy.spin()
