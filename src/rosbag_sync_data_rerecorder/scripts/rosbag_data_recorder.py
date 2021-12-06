@@ -128,7 +128,7 @@ class ListenRecordData:
             for j in range(i, max(i - 15, 0), -1):
                 prev_image = processed_data['image'][j]
                 prev_odom = data['odom_msg'][j]
-                cv2.imshow('src_image', processed_data['src_image'][i])
+                # cv2.imshow('src_image', processed_data['src_image'][i])
                 patch = ListenRecordData.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist, prev_odom.twist.twist, prev_image, processed_data['image'][i])
                 if patch is not None:
                     print('Patch found For location {} from location {}'.format(i, j))
@@ -254,9 +254,9 @@ class ListenRecordData:
             print("INVALID PATCH", np.sum(zero_count))
             return None
 
-        cv2.imshow('vis_img', np.hstack((curr_image, vis_img)))
-        cv2.imshow('patch', patch)
-        cv2.waitKey(0)
+        # cv2.imshow('vis_img', np.hstack((curr_image, vis_img)))
+        # cv2.imshow('patch', patch)
+        # cv2.waitKey(0)
         
         return patch
 
@@ -397,6 +397,7 @@ if __name__ == '__main__':
         if rosbag_play_process.poll() is not None:
             print('rosbag_play process has stopped')
             print('Data saved successfully')
+            exit(0)
 
     rospy.spin()
 

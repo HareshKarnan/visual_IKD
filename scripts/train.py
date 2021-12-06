@@ -1,3 +1,4 @@
+import os
 import pickle
 
 import pytorch_lightning as pl
@@ -14,7 +15,6 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
 from torchvision.transforms.functional import crop
-from scripts.utils import GaussianBlur
 import cv2
 from scipy.spatial.transform import Rotation as R
 from scripts.quaternion import *
@@ -72,14 +72,14 @@ class IKDModel(pl.LightningModule):
         return torch.optim.AdamW(self.visual_ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
 
 class IKDDataModule(pl.LightningDataModule):
-    def __init__(self, data, batch_size, history_len):
+    def __init__(self, data_dir, batch_size, history_len):
         super(IKDDataModule, self).__init__()
 
-        self.data = data
+        self.data_dir = data_dir
         self.batch_size = batch_size
         self.history_len = history_len
 
-        class MyDataset(Dataset):
+        class ProcessedBagDataset(Dataset):
             def __init__(self, data, history_len):
                 self.data = data
                 self.history_len = history_len
@@ -106,16 +106,22 @@ class IKDDataModule(pl.LightningDataModule):
                 joystick = self.data['joystick'][idx + self.history_len - 1]
                 accel = self.data['accel'][idx + self.history_len - 1]
                 gyro = self.data['gyro'][idx + self.history_len - 1]
-                bevimage = self.data['image'][idx + self.history_len - 1]
-                bevimage = cv2.resize(bevimage, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
-                bevimage /= 255.0
+                patch = self.data['patches'][idx + self.history_len - 1]
+                patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
+                patch /= 255.0
 
                 # cv2.imshow('disp', bevimage)
                 # cv2.waitKey(0)
 
-                return np.asarray(odom_history).flatten(), joystick, accel, gyro, bevimage
+                return np.asarray(odom_history).flatten(), joystick, accel, gyro, patch
 
-        self.dataset = MyDataset(self.data, history_len)
+        data_files = os.listdir(data_dir)
+        datasets = []
+        for file in data_files:
+            data = pickle.load(open(os.path.join(data_dir, file), 'rb'))
+            datasets.append(ProcessedBagDataset(data, history_len))
+
+        self.dataset = torch.utils.data.ConcatDataset(datasets)
         print('Total data points : ', len(self.dataset))
 
         self.validation_dataset, self.training_dataset = random_split(self.dataset, [int(0.2*len(self.dataset)), len(self.dataset) - int(0.2*len(self.dataset))])
@@ -130,11 +136,11 @@ class IKDDataModule(pl.LightningDataModule):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='rosbag parser')
-    parser.add_argument('--rosbag_path', type=str, default='data/ahgroad_new.bag')
     parser.add_argument('--max_epochs', type=int, default=1000)
     parser.add_argument('--history_len', type=int, default=4)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--hidden_size', type=int, default=32)
+    parser.add_argument('--data_dir', type=str, default='~/Research/bags/alphatruck/train1_data/')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -157,9 +163,9 @@ if __name__ == '__main__':
 
     keys = ['rgb', 'odom', 'accel', 'gyro', 'joystick']
 
-    data = pickle.load(open('data/2021-11-18-17-58-56_data.pkl', 'rb'))
+    data_dir = args.data_dir
 
-    dm = IKDDataModule(data=data, batch_size=args.batch_size, history_len=args.history_len)
+    dm = IKDDataModule(data_dir, batch_size=args.batch_size, history_len=args.history_len)
 
     early_stopping_cb = EarlyStopping(monitor='val_loss',
                                       mode='min',
