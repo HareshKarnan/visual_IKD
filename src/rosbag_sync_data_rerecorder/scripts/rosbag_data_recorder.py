@@ -79,7 +79,6 @@ class ListenRecordData:
             print('Received messages :: ', len(self.msg_data), self.batch_idx)
             self.save_data(copy.deepcopy(self.msg_data), self.batch_idx)
 
-
     def save_data(self, msg_data, batch_idx):
         data = {}
         # process joystick
@@ -373,9 +372,14 @@ if __name__ == '__main__':
     rospy.init_node('rosbag_data_recorder', anonymous=True)
     config_path = rospy.get_param('config_path')
     rosbag_path = rospy.get_param('rosbag_path')
+    save_data_path = rospy.get_param('out_path')
 
     print('config_path: ', config_path)
     print('rosbag_path: ', rosbag_path)
+    if not save_data_path:
+        save_data_path = rosbag_path.replace('.bag', '_data.pkl')
+    print('save_data_path: ', save_data_path)
+    os.makedirs(save_data_path, exist_ok=True)
 
     if not os.path.exists(config_path):
         raise FileNotFoundError('Config file not found')
@@ -384,9 +388,6 @@ if __name__ == '__main__':
 
     # start a subprocess to run the rosbag
     rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '1'])
-
-    save_data_path = rosbag_path.replace('.bag', '_data/')
-    os.makedirs(save_data_path, exist_ok=True)
 
     data_recorder = ListenRecordData(config_path=config_path,
                                      save_data_path=save_data_path,

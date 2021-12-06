@@ -2,7 +2,6 @@ import os
 import pickle
 
 import pytorch_lightning as pl
-import rosbag
 import torch.nn as nn
 import torch
 import argparse
@@ -72,10 +71,11 @@ class IKDModel(pl.LightningModule):
         return torch.optim.AdamW(self.visual_ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
 
 class IKDDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir, batch_size, history_len):
+    def __init__(self, data_dir, dataset_names, batch_size, history_len):
         super(IKDDataModule, self).__init__()
 
         self.data_dir = data_dir
+        self.dataset_names = dataset_names
         self.batch_size = batch_size
         self.history_len = history_len
 
@@ -85,17 +85,18 @@ class IKDDataModule(pl.LightningDataModule):
                 self.history_len = history_len
 
                 self.data['odom'] = np.asarray(self.data['odom'])
+                self.data['joystick'] = np.asarray(self.data['joystick'])
 
                 # self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
                 # self.data['joystick'][:, 1] = self.data['joystick'][:, 1] - self.data['odom'][:, 2]
 
-                odom_mean = np.mean(self.data['odom'], axis=0)
-                odom_std = np.std(self.data['odom'], axis=0)
-                joy_mean = np.mean(self.data['joystick'], axis=0)
-                joy_std = np.std(self.data['joystick'], axis=0)
+                # odom_mean = np.mean(self.data['odom'], axis=0)
+                # odom_std = np.std(self.data['odom'], axis=0)
+                # joy_mean = np.mean(self.data['joystick'], axis=0)
+                # joy_std = np.std(self.data['joystick'], axis=0)
 
-                self.data['odom'] = (self.data['odom'] - odom_mean) / odom_std
-                self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
+                # self.data['odom'] = (self.data['odom'] - odom_mean) / odom_std
+                # self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
 
             def __len__(self):
                 return len(self.data['odom']) - self.history_len
@@ -110,16 +111,17 @@ class IKDDataModule(pl.LightningDataModule):
                 patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
                 patch /= 255.0
 
-                # cv2.imshow('disp', bevimage)
+                # cv2.imshow('disp', patch)
                 # cv2.waitKey(0)
 
                 return np.asarray(odom_history).flatten(), joystick, accel, gyro, patch
 
-        data_files = os.listdir(data_dir)
         datasets = []
-        for file in data_files:
-            data = pickle.load(open(os.path.join(data_dir, file), 'rb'))
-            datasets.append(ProcessedBagDataset(data, history_len))
+        for dataset_name in dataset_names:
+            data_files = os.listdir(os.path.join(data_dir, dataset_name))
+            for file in data_files:
+                data = pickle.load(open(os.path.join(data_dir, dataset_name, file), 'rb'))
+                datasets.append(ProcessedBagDataset(data, history_len))
 
         self.dataset = torch.utils.data.ConcatDataset(datasets)
         print('Total data points : ', len(self.dataset))
@@ -127,11 +129,11 @@ class IKDDataModule(pl.LightningDataModule):
         self.validation_dataset, self.training_dataset = random_split(self.dataset, [int(0.2*len(self.dataset)), len(self.dataset) - int(0.2*len(self.dataset))])
 
     def train_dataloader(self):
-        return DataLoader(self.training_dataset, batch_size=self.batch_size, shuffle=True,
+        return DataLoader(self.training_dataset, batch_size=self.batch_size, shuffle=True, num_workers=16,
                           drop_last=not (len(self.training_dataset) % self.batch_size == 0.0))
 
     def val_dataloader(self):
-        return DataLoader(self.validation_dataset, batch_size=self.batch_size, shuffle=False,
+        return DataLoader(self.validation_dataset, batch_size=self.batch_size, shuffle=False, num_workers=16,
                           drop_last=not (len(self.validation_dataset) % self.batch_size == 0.0))
 
 if __name__ == '__main__':
@@ -140,7 +142,8 @@ if __name__ == '__main__':
     parser.add_argument('--history_len', type=int, default=4)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--hidden_size', type=int, default=32)
-    parser.add_argument('--data_dir', type=str, default='/home/kavan/Research/bags/alphatruck/train1_data/')
+    parser.add_argument('--data_dir', type=str, default='/robodata/kvsikand/visualIKD/')
+    parser.add_argument('--dataset_names', type=str, nargs='+', default=['train1_data/', 'train2_data/', 'train3_data/', 'train4_data/'])
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -163,9 +166,7 @@ if __name__ == '__main__':
 
     keys = ['rgb', 'odom', 'accel', 'gyro', 'joystick']
 
-    data_dir = args.data_dir
-
-    dm = IKDDataModule(data_dir, batch_size=args.batch_size, history_len=args.history_len)
+    dm = IKDDataModule(args.data_dir, args.dataset_names, batch_size=args.batch_size, history_len=args.history_len)
 
     early_stopping_cb = EarlyStopping(monitor='val_loss',
                                       mode='min',

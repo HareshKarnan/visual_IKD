@@ -2,7 +2,6 @@ import pickle
 
 import matplotlib.pyplot as plt
 import pytorch_lightning as pl
-import rosbag
 import torch.nn as nn
 import torch
 import argparse
@@ -15,7 +14,6 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
 from torchvision.transforms.functional import crop
-from scripts.utils import GaussianBlur
 import cv2
 from scipy.spatial.transform import Rotation as R
 from scripts.quaternion import *
@@ -34,24 +32,27 @@ if __name__ == '__main__':
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = IKDModel.load_from_checkpoint('models/18-11-2021-21-22-56.ckpt')
+    model = IKDModel.load_from_checkpoint('models/06-12-2021-11-49-19.ckpt')
 
     model = model.to(device)
 
-    data = pickle.load(open('data/2021-11-18-17-58-56_data.pkl', 'rb'))
+    data = pickle.load(open('/robodata/kvsikand/visualIKD/train1_data/data_1.pkl', 'rb'))
 
-    class MyAwesomeDataset(Dataset):
+    class ProcessedBagDataset(Dataset):
         def __init__(self, data, history_len):
             self.data = data
             self.history_len = history_len
 
-            odom_mean = np.mean(self.data['odom'], axis=0)
-            odom_std = np.std(self.data['odom'], axis=0)
-            joy_mean = np.mean(self.data['joystick'], axis=0)
-            joy_std = np.std(self.data['joystick'], axis=0)
 
-            self.data['odom'] = (self.data['odom'] - odom_mean) / odom_std
-            self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
+            self.data['odom'] = np.asarray(self.data['odom'])
+            self.data['joystick'] = np.asarray(self.data['joystick'])
+            # odom_mean = np.mean(self.data['odom'], axis=0)
+            # odom_std = np.std(self.data['odom'], axis=0)
+            # joy_mean = np.mean(self.data['joystick'], axis=0)
+            # joy_std = np.std(self.data['joystick'], axis=0)
+
+            # self.data['odom'] = (self.data['odom'] - odom_mean) / odom_std
+            # self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
 
         def __len__(self):
             return len(self.data['odom']) - self.history_len
@@ -62,16 +63,14 @@ if __name__ == '__main__':
             joystick = self.data['joystick'][idx + self.history_len - 1]
             accel = self.data['accel'][idx + self.history_len - 1]
             gyro = self.data['gyro'][idx + self.history_len - 1]
-            bevimage = self.data['image'][idx + self.history_len - 1]
-            bevimage = cv2.resize(bevimage, (64, 64), interpolation=cv2.INTER_AREA)
-            cv2.imshow('image', bevimage)
-            cv2.waitKey(1)
+            patch = self.data['patches'][idx + self.history_len - 1]
+            patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA)
 
-            bevimage = bevimage.astype(np.float32) / 255.0
+            patch = patch.astype(np.float32) / 255.0
 
-            return np.asarray(odom_history).flatten(), joystick, accel, gyro, bevimage
+            return np.asarray(odom_history).flatten(), joystick, accel, gyro, patch
 
-    dataset = MyAwesomeDataset(data, args.history_len)
+    dataset = ProcessedBagDataset(data, args.history_len)
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
                             drop_last=not (len(dataset) % args.batch_size == 0.0))
 
@@ -95,4 +94,4 @@ if __name__ == '__main__':
     plt.subplot(2, 1, 2)
     plt.plot(np.arange(len(joystick_true)), joystick_true[:, 1], label='true', color='blue')
     plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 1], label='pred', color='red')
-    plt.show()
+    plt.savefig('graph.png')
