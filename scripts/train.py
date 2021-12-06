@@ -140,7 +140,7 @@ if __name__ == '__main__':
     parser.add_argument('--history_len', type=int, default=4)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--hidden_size', type=int, default=32)
-    parser.add_argument('--data_dir', type=str, default='~/Research/bags/alphatruck/train1_data/')
+    parser.add_argument('--data_dir', type=str, default='/home/kavan/Research/bags/alphatruck/train1_data/')
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -181,7 +181,7 @@ if __name__ == '__main__':
                          max_epochs=args.max_epochs,
                          callbacks=[early_stopping_cb, model_checkpoint_cb],
                          log_every_n_steps=10,
-                         distributed_backend='ddp',
+                        #  distributed_backend='ddp',
                          stochastic_weight_avg=False,
                          logger=True,
                          )
