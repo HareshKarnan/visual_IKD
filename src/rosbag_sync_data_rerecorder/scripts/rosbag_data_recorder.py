@@ -124,19 +124,32 @@ class ListenRecordData:
         patches = []
         for i in tqdm(range(len(processed_data['image']))):
             curr_odom = data['odom_msg'][i]
-            patch = None
-            for j in range(i, max(i - 15, 0), -1):
+            max_patch = None
+            max_img = None
+            max_vis = None
+            max_patch_black_pct = 1.0
+            for j in range(i, max(i - 30, 0), -2):
                 prev_image = processed_data['image'][j]
                 prev_odom = data['odom_msg'][j]
                 # cv2.imshow('src_image', processed_data['src_image'][i])
-                patch = ListenRecordData.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist, prev_odom.twist.twist, prev_image, processed_data['image'][i])
-                if patch is not None:
+                patch, patch_black_pct, curr_img, vis_img = ListenRecordData.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist, prev_odom.twist.twist, prev_image, processed_data['image'][i])
+                if patch is not None and patch_black_pct < max_patch_black_pct:
                     print('Patch found For location {} from location {}'.format(i, j))
-                    break
-            if patch is None:
+                    max_patch_black_pct = patch_black_pct
+                    max_patch = patch
+                    max_img = curr_img
+                    max_vis = vis_img
+                
+            
+
+            if max_patch is None:
                 print('Failed to find patch For location {}'.format(i))
-                patch = processed_data['image'][i][420:520, 540:740]
-            patches.append(patch)
+                max_patch = processed_data['image'][i][420:520, 540:740]
+            else:
+                cv2.imshow('patch', max_patch)
+                cv2.imshow('vis_img', np.hstack([max_vis, max_img]))
+                cv2.waitKey(0)
+            patches.append(max_patch)
         return patches
 
     @staticmethod
@@ -252,13 +265,9 @@ class ListenRecordData:
 
         if np.sum(zero_count) > PATCH_EPSILON:
             print("INVALID PATCH", np.sum(zero_count))
-            return None
+            return None, 1.0, None, None
 
-        # cv2.imshow('vis_img', np.hstack((curr_image, vis_img)))
-        # cv2.imshow('patch', patch)
-        # cv2.waitKey(0)
-        
-        return patch
+        return patch, (np.sum(zero_count) / (64. * 64.)), curr_image, vis_img
 
     @staticmethod
     def process_odom_vel_data(data):
