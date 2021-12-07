@@ -44,7 +44,7 @@ class ListenRecordData:
         accel = message_filters.Subscriber('/camera/accel/sample', Imu)
         gyro = message_filters.Subscriber('/camera/gyro/sample', Imu)
         joystick = message_filters.Subscriber('/joystick', Joy)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 20, 0.05, allow_headerless=False)
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 100, 0.05, allow_headerless=False)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
         self.counter = 0
@@ -127,27 +127,29 @@ class ListenRecordData:
             max_img = None
             max_vis = None
             max_patch_black_pct = 1.0
+            max_j = i
             for j in range(i, max(i - 30, 0), -2):
                 prev_image = processed_data['image'][j]
                 prev_odom = data['odom_msg'][j]
                 # cv2.imshow('src_image', processed_data['src_image'][i])
                 patch, patch_black_pct, curr_img, vis_img = ListenRecordData.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist, prev_odom.twist.twist, prev_image, processed_data['image'][i])
                 if patch is not None and patch_black_pct < max_patch_black_pct:
-                    print('Patch found For location {} from location {}'.format(i, j))
                     max_patch_black_pct = patch_black_pct
                     max_patch = patch
                     max_img = curr_img
                     max_vis = vis_img
+                    max_j = j
                 
             
-
             if max_patch is None:
                 print('Failed to find patch For location {}'.format(i))
                 max_patch = processed_data['image'][i][420:520, 540:740]
             else:
-                cv2.imshow('patch', max_patch)
-                cv2.imshow('vis_img', np.hstack([max_vis, max_img]))
-                cv2.waitKey(0)
+                print('Patch found For location {} from location {}\n'.format(i, max_j))
+                # cv2.imshow('patch', max_patch)
+                # cv2.imshow('vis_img', np.hstack([max_vis, max_img]))
+                # cv2.waitKey(0)
+                pass
             patches.append(max_patch)
         return patches
 
@@ -263,7 +265,6 @@ class ListenRecordData:
         zero_count = np.logical_and(np.logical_and(patch[:, :, 0] == 0, patch[:, :, 1] == 0), patch[:, :, 2] == 0)
 
         if np.sum(zero_count) > PATCH_EPSILON:
-            print("INVALID PATCH", np.sum(zero_count))
             return None, 1.0, None, None
 
         return patch, (np.sum(zero_count) / (64. * 64.)), curr_image, vis_img
@@ -396,7 +397,7 @@ if __name__ == '__main__':
         raise FileNotFoundError('ROS bag file not found')
 
     # start a subprocess to run the rosbag
-    rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '1'])
+    rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '0.25'])
 
     data_recorder = ListenRecordData(config_path=config_path,
                                      save_data_path=save_data_path,
