@@ -87,7 +87,7 @@ class ListenRecordData:
 
             del msg_data_copy
 
-    def save_data(self, msg_data, batch_idx):
+    def save_data(self, msg_data, dummy=None):
         data = {}
         # process joystick
         print('Processing joystick data')
@@ -114,7 +114,7 @@ class ListenRecordData:
         data['vectornav'] = msg_data['vectornav']
         # save data
         cprint('Saving data.. ', 'yellow')
-        path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(batch_idx))
+        path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(self.batch_idx))
         pickle.dump(data, open(path, 'wb'))
         cprint('Saved data successfully ', 'yellow', attrs=['blink'])
 
