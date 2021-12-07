@@ -17,7 +17,7 @@ from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
 import signal
 import subprocess
-
+import threading
 
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.45 * PATCH_SIZE * PATCH_SIZE
@@ -37,14 +37,13 @@ class ListenRecordData:
             cprint('Parsed Config file successfully ', 'yellow', attrs=['blink'])
             print(self.config)
 
-        # image = message_filters.Subscriber("/terrain_patch/compressed", CompressedImage)
         image = message_filters.Subscriber("/webcam/image_raw/compressed", CompressedImage)
         vectornavimu = message_filters.Subscriber("/vectornav/IMU", Imu)
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
         accel = message_filters.Subscriber('/camera/accel/sample', Imu)
         gyro = message_filters.Subscriber('/camera/gyro/sample', Imu)
         joystick = message_filters.Subscriber('/joystick', Joy)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 100, 0.05, allow_headerless=False)
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 100, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
         self.counter = 0
@@ -58,7 +57,9 @@ class ListenRecordData:
             'gyro_msg': [],
             'vectornav': [],
         }
-        
+
+        self.open_thread_lists = []
+
     def callback(self, image, odom, joystick, accel, gyro, vectornavimu):
         # print('Received messages :: ', image.header.seq)
     
@@ -72,14 +73,21 @@ class ListenRecordData:
 
         if (len(self.msg_data['image_msg']) > BATCH_SIZE):
             for key in self.msg_data.keys():
-                self.msg_data[key] = self.msg_data[key][len(self.msg_data[key]) - BATCH_SIZE:]
-        
+                self.msg_data[key] = self.msg_data[key][-BATCH_SIZE:]
+
         if (self.counter % BATCH_SIZE == 0):
             self.batch_idx += 1
             print('Received messages :: ', len(self.msg_data), self.batch_idx)
-            self.save_data(copy.deepcopy(self.msg_data), self.batch_idx)
+            msg_data_copy = copy.deepcopy(self.msg_data)
 
-    def save_data(self, msg_data, batch_idx):
+            # call save_data function in separate thread
+            data_save_thread = threading.Thread(target=self.save_data, args=(msg_data_copy, None))
+            data_save_thread.start()
+            self.open_thread_lists.append(data_save_thread)
+
+            del msg_data_copy
+
+    def save_data(self, msg_data, dummy=None):
         data = {}
         # process joystick
         print('Processing joystick data')
@@ -97,6 +105,8 @@ class ListenRecordData:
 
         print('Processing patches')
         data['patches'] = self.process_patches(msg_data, data)
+        # remove src_image key from data
+        del data['src_image']
 
         # process odom
         print('Processing odom data')
@@ -104,7 +114,7 @@ class ListenRecordData:
         data['vectornav'] = msg_data['vectornav']
         # save data
         cprint('Saving data.. ', 'yellow')
-        path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(batch_idx))
+        path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(self.batch_idx))
         pickle.dump(data, open(path, 'wb'))
         cprint('Saved data successfully ', 'yellow', attrs=['blink'])
 
@@ -142,10 +152,10 @@ class ListenRecordData:
                 
             
             if max_patch is None:
-                print('Failed to find patch For location {}'.format(i))
+                # print('Failed to find patch For location {}'.format(i))
                 max_patch = processed_data['image'][i][420:520, 540:740]
             else:
-                print('Patch found For location {} from location {}\n'.format(i, max_j))
+                # print('Patch found For location {} from location {}\n'.format(i, max_j))
                 # cv2.imshow('patch', max_patch)
                 # cv2.imshow('vis_img', np.hstack([max_vis, max_img]))
                 # cv2.waitKey(0)
@@ -230,24 +240,8 @@ class ListenRecordData:
         head_start = curr_pos_np
         head_end = curr_pos_np + curr_z_rotation @ np.array([0.25, 0, 0])
 
-        def draw_arrow(arrow_start, arrow_end, color):
-            arrow_start_prev_frame = inv_pos_transform @ arrow_start
-            arrow_end_prev_frame = inv_pos_transform @ arrow_end
-            scaled_arrow_start = (arrow_start_prev_frame * 200).astype(np.int)
-            scaled_arrow_end = (arrow_end_prev_frame * 200).astype(np.int)
-            arrow_start_image_frame = CENTER + np.array((-scaled_arrow_start[1], -scaled_arrow_start[0]))
-            arrow_end_image_frame = CENTER + np.array((-scaled_arrow_end[1], -scaled_arrow_end[0]))
-
-            cv2.arrowedLine(
-                vis_img,
-                (arrow_start_image_frame[0], arrow_start_image_frame[1]),
-                (arrow_end_image_frame[0], arrow_end_image_frame[1]),
-                color,
-                3
-            )
-
-        draw_arrow(mov_start, mov_end, (255, 0, 0))
-        draw_arrow(head_start, head_end, (0, 0, 255))
+        ListenRecordData.draw_arrow(mov_start, mov_end, (255, 0, 0), inv_pos_transform, CENTER, vis_img)
+        ListenRecordData.draw_arrow(head_start, head_end, (0, 0, 255), inv_pos_transform, CENTER, vis_img)
 
         projected_loc_prev_frame = inv_pos_transform @ projected_loc_np
         scaled_projected_loc = (projected_loc_prev_frame * 200).astype(np.int)
@@ -270,6 +264,23 @@ class ListenRecordData:
         return patch, (np.sum(zero_count) / (64. * 64.)), curr_image, vis_img
 
     @staticmethod
+    def draw_arrow(arrow_start, arrow_end, color, inv_pos_transform, CENTER, vis_img):
+        arrow_start_prev_frame = inv_pos_transform @ arrow_start
+        arrow_end_prev_frame = inv_pos_transform @ arrow_end
+        scaled_arrow_start = (arrow_start_prev_frame * 200).astype(np.int)
+        scaled_arrow_end = (arrow_end_prev_frame * 200).astype(np.int)
+        arrow_start_image_frame = CENTER + np.array((-scaled_arrow_start[1], -scaled_arrow_start[0]))
+        arrow_end_image_frame = CENTER + np.array((-scaled_arrow_end[1], -scaled_arrow_end[0]))
+
+        cv2.arrowedLine(
+            vis_img,
+            (arrow_start_image_frame[0], arrow_start_image_frame[1]),
+            (arrow_end_image_frame[0], arrow_end_image_frame[1]),
+            color,
+            3
+        )
+
+    @staticmethod
     def process_odom_vel_data(data):
         odoms = []
         for i in tqdm(range(len(data['odom_msg']))):
@@ -284,7 +295,7 @@ class ListenRecordData:
         last_speed = 0.0
         joystick_data = []
         for i in tqdm(range(len(data['joystick_msg']))):
-            datum = data['joystick_msg'][i].axes
+            datum = data['joystick_msg'][i].axes # TODO use a previous joystick command based on actuation LATENCY
             # print(data['joystick'][i])
             steer_joystick = -datum[0]
             drive_joystick = -datum[4]
@@ -323,15 +334,7 @@ class ListenRecordData:
 
     @staticmethod
     def camera_imu_homography(imu, image):
-        # orientation_quat = [odom.pose.pose.orientation.x,
-        #                     odom.pose.pose.orientation.y,
-        #                     odom.pose.pose.orientation.z,
-        #                     odom.pose.pose.orientation.w]
-
         orientation_quat = [imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w]
-
-        # z_correction = odom.pose.pose.position.z
-
         C_i = np.array(
             [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0, 1.0]).reshape(
             (3, 3))
@@ -407,8 +410,23 @@ if __name__ == '__main__':
         # check if python subprocess is still running
         if rosbag_play_process.poll() is not None:
             print('rosbag_play process has stopped')
-            print('Data saved successfully')
+
+            # check if there is some data left to be stored in the buffer
+            if data_recorder.counter % BATCH_SIZE > 0:
+                print('There is some data left in the buffer with length :', data_recorder.counter % BATCH_SIZE)
+                data_recorder.batch_idx += 1
+                for key in data_recorder.msg_data.keys():
+                    data_recorder.msg_data[key] = data_recorder.msg_data[key][-data_recorder.counter % BATCH_SIZE:]
+                data_recorder.save_data(copy.deepcopy(data_recorder.msg_data))
+                print('Buffer data has been stored')
+            else:
+                print('No data left in the buffer')
+
+            print('waiting for ', len(data_recorder.open_thread_lists), ' threads to finish ... ')
+            for threads in tqdm(data_recorder.open_thread_lists):
+                threads.join()
             exit(0)
 
     rospy.spin()
+
 
