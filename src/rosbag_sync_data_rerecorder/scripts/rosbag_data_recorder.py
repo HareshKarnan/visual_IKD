@@ -87,7 +87,7 @@ class ListenRecordData:
 
             del msg_data_copy
 
-    def save_data(self, msg_data, dummy=None):
+    def save_data(self, msg_data, batch_idx):
         data = {}
         # process joystick
         print('Processing joystick data')
@@ -114,7 +114,7 @@ class ListenRecordData:
         data['vectornav'] = msg_data['vectornav']
         # save data
         cprint('Saving data.. ', 'yellow')
-        path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(self.batch_idx))
+        path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(batch_idx))
         pickle.dump(data, open(path, 'wb'))
         cprint('Saved data successfully ', 'yellow', attrs=['blink'])
 
@@ -400,7 +400,7 @@ if __name__ == '__main__':
         raise FileNotFoundError('ROS bag file not found')
 
     # start a subprocess to run the rosbag
-    rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '0.25'])
+    rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '1'])
 
     data_recorder = ListenRecordData(config_path=config_path,
                                      save_data_path=save_data_path,
@@ -414,10 +414,9 @@ if __name__ == '__main__':
             # check if there is some data left to be stored in the buffer
             if data_recorder.counter % BATCH_SIZE > 0:
                 print('There is some data left in the buffer with length :', data_recorder.counter % BATCH_SIZE)
-                data_recorder.batch_idx += 1
                 for key in data_recorder.msg_data.keys():
                     data_recorder.msg_data[key] = data_recorder.msg_data[key][-data_recorder.counter % BATCH_SIZE:]
-                data_recorder.save_data(copy.deepcopy(data_recorder.msg_data), data_recorder.batch_idx)
+                data_recorder.save_data(copy.deepcopy(data_recorder.msg_data), data_recorder.batch_idx + 1)
                 print('Buffer data has been stored')
             else:
                 print('No data left in the buffer')
