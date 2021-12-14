@@ -1,24 +1,10 @@
 import pickle
 
 import matplotlib.pyplot as plt
-import pytorch_lightning as pl
-import torch.nn as nn
-import torch
 import argparse
-from termcolor import cprint
-import yaml
-import numpy as np
-from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision.transforms import transforms
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
-from datetime import datetime
-from torchvision.transforms.functional import crop
+from torch.utils.data import Dataset, DataLoader
 import cv2
-from scipy.spatial.transform import Rotation as R
-from scripts.quaternion import *
-from scripts.model import VisualIKDNet
-import torch.nn.functional as F
+from scripts.old.quaternion import *
 from tqdm import tqdm
 from scripts.train import IKDModel
 

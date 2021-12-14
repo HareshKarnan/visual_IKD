@@ -1,5 +1,10 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
+
+class L2Normalize(nn.Module):
+    def forward(self, x):
+        return F.normalize(x, p=2, dim=1) # L2 normalize
 
 class VisualIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
