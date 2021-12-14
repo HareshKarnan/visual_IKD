@@ -4,7 +4,6 @@ from torch import nn
 class VisualIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
         super(VisualIKDNet, self).__init__()
-
         self.visual_encoder = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=3, stride=2),
             nn.BatchNorm2d(32), nn.PReLU(), # 31x31
@@ -27,3 +26,15 @@ class VisualIKDNet(nn.Module):
         visual_embedding = self.visual_encoder(image)
         output = self.trunk(torch.cat((non_image, visual_embedding), dim=1))
         return output
+
+class SimpleIKDNet(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size=32):
+        super(SimpleIKDNet, self).__init__()
+        self.trunk = nn.Sequential(
+            nn.Linear(input_size, hidden_size), nn.Tanh(),
+            nn.Linear(hidden_size, hidden_size), nn.Tanh(),
+            nn.Linear(hidden_size, output_size)
+        )
+
+    def forward(self, non_image):
+        return self.trunk(non_image)

@@ -77,7 +77,7 @@ class ListenRecordData:
 
         if (self.counter % BATCH_SIZE == 0):
             self.batch_idx += 1
-            print('Received messages :: ', len(self.msg_data), self.batch_idx)
+            # print('Received messages :: ', len(self.msg_data), self.batch_idx)
             msg_data_copy = copy.deepcopy(self.msg_data)
 
             # call save_data function in separate thread
@@ -122,7 +122,7 @@ class ListenRecordData:
     def process_bev_image(data):
         images = []
         src_images = []
-        for i in tqdm(range(len(data['image_msg']))):
+        for i in range(len(data['image_msg'])):
             bevimage, src_image = ListenRecordData.camera_imu_homography(data['vectornav'][i], data['image_msg'][i])
             images.append(bevimage)
             src_images.append(src_image)
@@ -131,7 +131,7 @@ class ListenRecordData:
     @staticmethod
     def process_patches(data, processed_data):
         patches = []
-        for i in tqdm(range(len(processed_data['image']))):
+        for i in range(len(processed_data['image'])):
             curr_odom = data['odom_msg'][i]
             max_patch = None
             max_img = None
@@ -283,7 +283,7 @@ class ListenRecordData:
     @staticmethod
     def process_odom_vel_data(data):
         odoms = []
-        for i in tqdm(range(len(data['odom_msg']))):
+        for i in range(len(data['odom_msg'])):
             odom = data['odom_msg'][i]
             odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
             odoms.append(odom_np)
@@ -294,7 +294,7 @@ class ListenRecordData:
         # process joystick
         last_speed = 0.0
         joystick_data = []
-        for i in tqdm(range(len(data['joystick_msg']))):
+        for i in range(len(data['joystick_msg'])):
             datum = data['joystick_msg'][i].axes # TODO use a previous joystick command based on actuation LATENCY
             # print(data['joystick'][i])
             steer_joystick = -datum[0]
@@ -374,7 +374,7 @@ class ListenRecordData:
     def process_accel_gyro_data(data):
         accel_data = []
         gyro_data = []
-        for i in tqdm(range(len(data['accel_msg']))):
+        for i in range(len(data['accel_msg'])):
             accel = data['accel_msg'][i].linear_acceleration
             gyro = data['gyro_msg'][i].angular_velocity
             accel_data.append(np.asarray([accel.x, accel.y, accel.z]))

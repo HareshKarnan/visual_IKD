@@ -17,7 +17,7 @@ from torchvision.transforms.functional import crop
 import cv2
 from scipy.spatial.transform import Rotation as R
 from scripts.quaternion import *
-from scripts.model import VisualIKDNet
+from scripts.model import VisualIKDNet, SimpleIKDNet
 import torch.nn.functional as F
 
 def croppatchinfront(image):
@@ -28,9 +28,13 @@ class L2Normalize(nn.Module):
         return F.normalize(x, p=2, dim=1) # L2 normalize
 
 class IKDModel(pl.LightningModule):
-    def __init__(self, input_size, output_size, hidden_size=64, history_len=1):
+    def __init__(self, input_size, output_size, hidden_size=64, use_vision=False):
         super(IKDModel, self).__init__()
-        self.visual_ikd_model = VisualIKDNet(input_size, output_size, hidden_size)
+
+        if use_vision:
+            self.ikd_model = VisualIKDNet(input_size, output_size, hidden_size)
+        else:
+            self.ikd_model = SimpleIKDNet(input_size, output_size, hidden_size)
 
         self.save_hyperparameters('input_size',
                                   'output_size',
@@ -40,7 +44,7 @@ class IKDModel(pl.LightningModule):
         self.loss = torch.nn.MSELoss()
 
     def forward(self, non_visual_input, bevimage):
-        return self.visual_ikd_model(non_visual_input, bevimage)
+        return self.ikd_model(non_visual_input, bevimage)
 
     def training_step(self, batch, batch_idx):
         odom, joystick, accel, gyro, bevimage = batch
@@ -68,7 +72,7 @@ class IKDModel(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.visual_ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
+        return torch.optim.AdamW(self.ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
 
 class IKDDataModule(pl.LightningDataModule):
     def __init__(self, data_dir, dataset_names, batch_size, history_len):
@@ -142,8 +146,9 @@ if __name__ == '__main__':
     parser.add_argument('--history_len', type=int, default=4)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--hidden_size', type=int, default=32)
-    parser.add_argument('--data_dir', type=str, default='/robodata/kvsikand/visualIKD/')
-    parser.add_argument('--dataset_names', type=str, nargs='+', default=['train1_data/', 'train2_data/', 'train3_data/', 'train4_data/'])
+    parser.add_argument('--use_vision', action='store_true', default=False)
+    parser.add_argument('--data_dir', type=str, default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/')
+    parser.add_argument('--dataset_names', type=str, nargs='+', default=['train1'])
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -152,7 +157,7 @@ if __name__ == '__main__':
     model = IKDModel(input_size=3 + 3 + 3*(args.history_len+1),
                      output_size=2,
                      hidden_size=args.hidden_size,
-                     history_len=args.history_len)
+                     use_vision=args.use_vision).to(device)
 
     model = model.to(device)
 
