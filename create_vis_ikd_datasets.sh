@@ -1,0 +1,7 @@
+roslaunch src/rosbag_sync_data_rerecorder/launch/rosbag_data_recorder.launch dataset:=train1
+roslaunch src/rosbag_sync_data_rerecorder/launch/rosbag_data_recorder.launch dataset:=train2
+roslaunch src/rosbag_sync_data_rerecorder/launch/rosbag_data_recorder.launch dataset:=train3
+roslaunch src/rosbag_sync_data_rerecorder/launch/rosbag_data_recorder.launch dataset:=train1
+roslaunch src/rosbag_sync_data_rerecorder/launch/rosbag_data_recorder.launch dataset:=train2
+roslaunch src/rosbag_sync_data_rerecorder/launch/rosbag_data_recorder.launch dataset:=train3
+roslaunch src/rosbag_sync_data_rerecorder/launch/rosbag_data_recorder.launch dataset:=train4

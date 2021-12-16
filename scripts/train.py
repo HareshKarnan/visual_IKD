@@ -38,8 +38,7 @@ class IKDModel(pl.LightningModule):
 
         self.save_hyperparameters('input_size',
                                   'output_size',
-                                  'hidden_size',
-                                  'history_len')
+                                  'hidden_size')
 
         self.loss = torch.nn.MSELoss()
 
@@ -89,9 +88,7 @@ class IKDDataModule(pl.LightningDataModule):
                 self.history_len = history_len
 
                 self.data['odom'] = np.asarray(self.data['odom'])
-                self.data['joystick'] = np.asarray(self.data['joystick'])
-
-                # self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
+                self.data['joystick'] = np.asarray(self.data['joystick'])                # self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
                 # self.data['joystick'][:, 1] = self.data['joystick'][:, 1] - self.data['odom'][:, 2]
 
                 # odom_mean = np.mean(self.data['odom'], axis=0)
@@ -103,7 +100,7 @@ class IKDDataModule(pl.LightningDataModule):
                 # self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
 
             def __len__(self):
-                return len(self.data['odom']) - self.history_len
+                return max(self.data['joystick'].shape[0] - self.history_len, 0)
 
             def __getitem__(self, idx):
                 # history of odoms + next state
@@ -111,7 +108,9 @@ class IKDDataModule(pl.LightningDataModule):
                 joystick = self.data['joystick'][idx + self.history_len - 1]
                 accel = self.data['accel'][idx + self.history_len - 1]
                 gyro = self.data['gyro'][idx + self.history_len - 1]
-                patch = self.data['patches'][idx + self.history_len - 1]
+                patches = self.data['patches'][idx + self.history_len - 1]
+                rand_idx = np.random.randint(0, len(patches))
+                patch = patches[rand_idx]
                 patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
                 patch /= 255.0
 
@@ -125,7 +124,9 @@ class IKDDataModule(pl.LightningDataModule):
             data_files = os.listdir(os.path.join(data_dir, dataset_name))
             for file in data_files:
                 data = pickle.load(open(os.path.join(data_dir, dataset_name, file), 'rb'))
-                datasets.append(ProcessedBagDataset(data, history_len))
+                dataset = ProcessedBagDataset(data, history_len)
+                if len(dataset) > 0:
+                    datasets.append(dataset)
 
         self.dataset = torch.utils.data.ConcatDataset(datasets)
         print('Total data points : ', len(self.dataset))
@@ -144,7 +145,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='rosbag parser')
     parser.add_argument('--max_epochs', type=int, default=1000)
     parser.add_argument('--history_len', type=int, default=4)
-    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--hidden_size', type=int, default=32)
     parser.add_argument('--use_vision', action='store_true', default=False)
     parser.add_argument('--data_dir', type=str, default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/')
