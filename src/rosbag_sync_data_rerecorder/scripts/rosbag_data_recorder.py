@@ -77,31 +77,23 @@ class ListenRecordData:
 
         if (self.counter % BATCH_SIZE == 0):
             self.batch_idx += 1
-            # print('Received messages :: ', len(self.msg_data), self.batch_idx)
-            msg_data_copy = copy.deepcopy(self.msg_data)
-
-            # call save_data function in separate thread
-            data_save_thread = threading.Thread(target=self.save_data, args=(msg_data_copy, self.batch_idx))
+            data_save_thread = threading.Thread(target=self.save_data, args=(copy.deepcopy(self.msg_data), self.batch_idx))
             data_save_thread.start()
             self.open_thread_lists.append(data_save_thread)
-
-            del msg_data_copy
 
     def save_data(self, msg_data, batch_idx):
         data = {}
         # process joystick
         print('Processing joystick data')
         data['joystick'] = self.process_joystick_data(msg_data, self.config)
-        # prcess accel, gyro data
+
+        # process accel, gyro data
         print('Processing accel, gyro data')
-        accel, gyro = self.process_accel_gyro_data(msg_data)
-        data['accel'] = accel
-        data['gyro'] = gyro
-        # process bev image
+        data['accel'], data['gyro'] = self.process_accel_gyro_data(msg_data)
+
+        # convert egocentric image view into a bird's eye view based on the IMU data
         print('Processing bev image')
-        images, src_images = self.process_bev_image(msg_data)
-        data['image'] = images
-        data['src_image'] = src_images
+        data['image'], data['src_image'] = self.process_bev_image(msg_data)
 
         print('Processing patches')
         data['patches'] = self.process_patches(msg_data, data)
@@ -120,8 +112,7 @@ class ListenRecordData:
 
     @staticmethod
     def process_bev_image(data):
-        images = []
-        src_images = []
+        images, src_images = [], []
         for i in range(len(data['image_msg'])):
             bevimage, src_image = ListenRecordData.camera_imu_homography(data['vectornav'][i], data['image_msg'][i])
             images.append(bevimage)
@@ -154,6 +145,7 @@ class ListenRecordData:
             if max_patch is None:
                 # print('Failed to find patch For location {}'.format(i))
                 max_patch = processed_data['image'][i][420:520, 540:740]
+                max_vis = processed_data['image'][i]
             else:
                 # print('Patch found For location {} from location {}\n'.format(i, max_j))
                 # cv2.imshow('patch', max_patch)
@@ -161,6 +153,7 @@ class ListenRecordData:
                 # cv2.waitKey(0)
                 pass
             patches.append(max_patch)
+
         return patches
 
     @staticmethod

@@ -15,40 +15,54 @@ from scripts.arguments import get_args
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size, hidden_size=64, use_vision=False):
         super(IKDModel, self).__init__()
+        self.use_vision = use_vision
+
 
         if use_vision:
+            cprint('Using vision', 'green', attrs=['bold'])
             self.ikd_model = VisualIKDNet(input_size, output_size, hidden_size)
         else:
+            cprint('Not using vision', 'green', attrs=['bold'])
             self.ikd_model = SimpleIKDNet(input_size, output_size, hidden_size)
 
         self.save_hyperparameters('input_size',
                                   'output_size',
-                                  'hidden_size',
-                                  'history_len')
+                                  'hidden_size')
 
         self.loss = torch.nn.MSELoss()
 
-    def forward(self, non_visual_input, bevimage):
-        return self.ikd_model(non_visual_input, bevimage)
+    def forward(self, non_visual_input, bevimage=None):
+        if self.use_vision:
+            return self.ikd_model(non_visual_input, bevimage)
+        else:
+            return self.ikd_model(non_visual_input)
 
     def training_step(self, batch, batch_idx):
         odom, joystick, accel, gyro, bevimage = batch
-        bevimage = bevimage.permute(0, 3, 1, 2)
+        if self.use_vision:
+            bevimage = bevimage.permute(0, 3, 1, 2)
 
         non_visual_input = torch.cat((odom, accel, gyro), dim=1)
+        if self.use_vision:
+            prediction = self.forward(non_visual_input.float(), bevimage.float())
+        else:
+            prediction = self.forward(non_visual_input.float())
 
-        prediction = self.forward(non_visual_input.float(), bevimage.float())
         loss = self.loss(prediction, joystick.float())
         self.log('train_loss', loss, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         odom, joystick, accel, gyro, bevimage = batch
-        bevimage = bevimage.permute(0, 3, 1, 2)
+        if self.use_vision:
+            bevimage = bevimage.permute(0, 3, 1, 2)
 
         non_visual_input = torch.cat((odom, accel, gyro), dim=1)
+        if self.use_vision:
+            prediction = self.forward(non_visual_input.float(), bevimage.float())
+        else:
+            prediction = self.forward(non_visual_input.float())
 
-        prediction = self.forward(non_visual_input.float(), bevimage.float())
         loss = self.loss(prediction, joystick.float())
         self.log('val_loss', loss, prog_bar=True, logger=True)
         return loss
