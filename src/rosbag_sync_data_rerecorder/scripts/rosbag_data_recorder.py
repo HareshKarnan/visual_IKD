@@ -20,7 +20,7 @@ import subprocess
 import threading
 
 PATCH_SIZE = 64
-PATCH_EPSILON = 0.45 * PATCH_SIZE * PATCH_SIZE
+PATCH_EPSILON = 0.2 * PATCH_SIZE * PATCH_SIZE
 ACTUATION_LATENCY = 0.1
 BATCH_SIZE = 64
 
@@ -104,8 +104,25 @@ class ListenRecordData:
         print('Processing odom data')
         data['odom'] = self.process_odom_vel_data(msg_data)
         data['vectornav'] = msg_data['vectornav']
+
+        print("truncating data")
+        for i in range(len(data['odom']) - 1, -1, -1):
+            if (i not in data['patches']):
+                data['joystick'].pop(i)
+                data['accel'].pop(i)
+                data['gyro'].pop(i)
+                data['image'].pop(i)
+                data['odom'].pop(i)
+                data['vectornav'].pop(i)
+        assert(len(data['odom']) == len(data['patches'].keys()))
+        patches = []
+        sorted_keys = sorted(data['patches'].keys())
+        for i in range(len(sorted_keys)):
+            patches.append(data['patches'][sorted_keys[i]])
+        data['patches'] = patches
+
         # save data
-        cprint('Saving data.. ', 'yellow')
+        cprint('Saving data...{}'.format(len(data['odom'])), 'yellow')
         path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(batch_idx))
         pickle.dump(data, open(path, 'wb'))
         cprint('Saved data successfully ', 'yellow', attrs=['blink'])
@@ -121,39 +138,22 @@ class ListenRecordData:
 
     @staticmethod
     def process_patches(data, processed_data):
-        patches = []
+        patches = {}
         for i in range(len(processed_data['image'])):
             curr_odom = data['odom_msg'][i]
-            max_patch = None
-            max_img = None
-            max_vis = None
-            max_patch_black_pct = 1.0
-            max_j = i
+            found_patch = False
             for j in range(i, max(i - 30, 0), -2):
                 prev_image = processed_data['image'][j]
                 prev_odom = data['odom_msg'][j]
                 # cv2.imshow('src_image', processed_data['src_image'][i])
                 patch, patch_black_pct, curr_img, vis_img = ListenRecordData.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist, prev_odom.twist.twist, prev_image, processed_data['image'][i])
-                if patch is not None and patch_black_pct < max_patch_black_pct:
-                    max_patch_black_pct = patch_black_pct
-                    max_patch = patch
-                    max_img = curr_img
-                    max_vis = vis_img
-                    max_j = j
-                
-            
-            if max_patch is None:
-                # print('Failed to find patch For location {}'.format(i))
-                max_patch = processed_data['image'][i][420:520, 540:740]
-                max_vis = processed_data['image'][i]
-            else:
-                # print('Patch found For location {} from location {}\n'.format(i, max_j))
-                # cv2.imshow('patch', max_patch)
-                # cv2.imshow('vis_img', np.hstack([max_vis, max_img]))
-                # cv2.waitKey(0)
-                pass
-            patches.append(max_patch)
-
+                if patch is not None:
+                    found_patch = True
+                    if i not in patches:
+                        patches[i] = []
+                    patches[i].append(patch)
+            if not found_patch:
+                print("Unable to find patch for idx: ", i)
         return patches
 
     @staticmethod
@@ -393,7 +393,7 @@ if __name__ == '__main__':
         raise FileNotFoundError('ROS bag file not found')
 
     # start a subprocess to run the rosbag
-    rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '1'])
+    rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '2'])
 
     data_recorder = ListenRecordData(config_path=config_path,
                                      save_data_path=save_data_path,
