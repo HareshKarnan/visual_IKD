@@ -2,30 +2,15 @@ import os
 import pickle
 
 import pytorch_lightning as pl
-import torch.nn as nn
-import torch
-import argparse
 from termcolor import cprint
-import yaml
-import numpy as np
 from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision.transforms import transforms
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
-from torchvision.transforms.functional import crop
 import cv2
-from scipy.spatial.transform import Rotation as R
-from scripts.quaternion import *
+from scripts.old.quaternion import *
 from scripts.model import VisualIKDNet, SimpleIKDNet
-import torch.nn.functional as F
-
-def croppatchinfront(image):
-    return crop(image, 890, 584, 56, 100)
-
-class L2Normalize(nn.Module):
-    def forward(self, x):
-        return F.normalize(x, p=2, dim=1) # L2 normalize
+from scripts.arguments import get_args
 
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size, hidden_size=64, use_vision=False):
@@ -142,6 +127,7 @@ class IKDDataModule(pl.LightningDataModule):
                           drop_last=not (len(self.validation_dataset) % self.batch_size == 0.0))
 
 if __name__ == '__main__':
+<<<<<<< HEAD
     parser = argparse.ArgumentParser(description='rosbag parser')
     parser.add_argument('--max_epochs', type=int, default=1000)
     parser.add_argument('--history_len', type=int, default=4)
@@ -151,37 +137,25 @@ if __name__ == '__main__':
     parser.add_argument('--data_dir', type=str, default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/')
     parser.add_argument('--dataset_names', type=str, nargs='+', default=['train1'])
     args = parser.parse_args()
+=======
+    # get the arguments
+    args = get_args()
+>>>>>>> 0144202f6e19ae021345ffdeaab916466ef32ea6
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # accel + gyro + odom*history
-    model = IKDModel(input_size=3 + 3 + 3*(args.history_len+1),
+    model = IKDModel(input_size=3 + 3 + 3*(args.history_len+1), # accel + gyro + odom*history
                      output_size=2,
                      hidden_size=args.hidden_size,
                      use_vision=args.use_vision).to(device)
 
     model = model.to(device)
-
-    topics_to_read = [
-        '/camera/odom/sample',
-        '/joystick',
-        '/camera/accel/sample',
-        '/camera/gyro/sample',
-        '/webcam/image_raw/compressed'
-    ]
-
-    keys = ['rgb', 'odom', 'accel', 'gyro', 'joystick']
-
     dm = IKDDataModule(args.data_dir, args.dataset_names, batch_size=args.batch_size, history_len=args.history_len)
 
-    early_stopping_cb = EarlyStopping(monitor='val_loss',
-                                      mode='min',
-                                      min_delta=0.00,
-                                      patience=100)
+    early_stopping_cb = EarlyStopping(monitor='val_loss', mode='min', min_delta=0.00, patience=100)
 
-    model_checkpoint_cb = ModelCheckpoint(dirpath='models/',
-                                          filename=datetime.now().strftime("%d-%m-%Y-%H-%M-%S"),
-                                          monitor='val_loss', mode='min')
+    model_checkpoint_cb = ModelCheckpoint(dirpath='models/', filename=datetime.now().strftime("%d-%m-%Y-%H-%M-%S"),
+                                          monitor='val_loss')
 
     print("Training model...")
     trainer = pl.Trainer(gpus=[0],
@@ -195,8 +169,5 @@ if __name__ == '__main__':
 
     trainer.fit(model, dm)
 
-
-
-    # trainer.save_checkpoint('models/' + datetime.now().strftime("%d-%m-%Y-%H-%M-%S"))
-
+    cprint("Training complete..", 'green', attrs=['bold'])
 
