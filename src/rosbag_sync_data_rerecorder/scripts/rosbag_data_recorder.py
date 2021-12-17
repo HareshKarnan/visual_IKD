@@ -18,11 +18,12 @@ from scipy.spatial.transform import Rotation as R
 import signal
 import subprocess
 import threading
+import pyautogui
 
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.2 * PATCH_SIZE * PATCH_SIZE
 ACTUATION_LATENCY = 0.1
-BATCH_SIZE = 256
+BATCH_SIZE = 160000
 
 class ListenRecordData:
     def __init__(self, config_path, save_data_path, rosbag_play_process):
@@ -43,7 +44,7 @@ class ListenRecordData:
         accel = message_filters.Subscriber('/camera/accel/sample', Imu)
         gyro = message_filters.Subscriber('/camera/gyro/sample', Imu)
         joystick = message_filters.Subscriber('/joystick', Joy)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 100, 0.05, allow_headerless=True)
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 10, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
         self.counter = 0
@@ -61,7 +62,7 @@ class ListenRecordData:
         self.open_thread_lists = []
 
     def callback(self, image, odom, joystick, accel, gyro, vectornavimu):
-        # print('Received messages :: ', image.header.seq)
+        print('Received messages :: ', self.counter, ' ___')
     
         self.msg_data['image_msg'].append(image)
         self.msg_data['odom_msg'].append(odom)
@@ -75,38 +76,50 @@ class ListenRecordData:
             for key in self.msg_data.keys():
                 self.msg_data[key] = self.msg_data[key][-BATCH_SIZE:]
 
-        if (self.counter % BATCH_SIZE == 0):
-            self.batch_idx += 1
-            data_save_thread = threading.Thread(target=self.save_data, args=(copy.deepcopy(self.msg_data), self.batch_idx))
-            data_save_thread.start()
-            self.open_thread_lists.append(data_save_thread)
+        # if (self.counter % BATCH_SIZE == 0):
+        #
+        #     print('Pause rosbag play process')
+        #     pyautogui.press('space')
+        #
+        #     self.batch_idx += 1
+        #     data_save_thread = threading.Thread(target=self.save_data, args=(copy.deepcopy(self.msg_data), self.batch_idx))
+        #     data_save_thread.start()
+        #     cprint('Saving data.. ', 'yellow', attrs=['bold'])
+        #     self.open_thread_lists.append(data_save_thread)
+        #     data_save_thread.join()
+        #     print('Resuming rosbag play process')
+        #     pyautogui.press('space')
 
     def save_data(self, msg_data, batch_idx):
         data = {}
         # process joystick
         print('Processing joystick data')
         data['joystick'] = self.process_joystick_data(msg_data, self.config)
+        del msg_data['joystick_msg']
 
         # process accel, gyro data
         print('Processing accel, gyro data')
         data['accel'], data['gyro'] = self.process_accel_gyro_data(msg_data)
+        del msg_data['accel_msg']
+        del msg_data['gyro_msg']
 
         # convert egocentric image view into a bird's eye view based on the IMU data
         print('Processing bev image')
-        data['image'], data['src_image'] = self.process_bev_image(msg_data)
+        data['image'] = self.process_bev_image(msg_data)
+        del msg_data['image_msg']
 
         print('Processing patches')
         data['patches'] = self.process_patches(msg_data, data)
-        # remove src_image key from data
-        del data['src_image']
 
         # process odom
         print('Processing odom data')
         data['odom'] = self.process_odom_vel_data(msg_data)
         data['vectornav'] = msg_data['vectornav']
+        del msg_data['odom_msg']
+        del msg_data['vectornav']
 
         print("truncating data")
-        for i in range(len(data['odom']) - 1, -1, -1):
+        for i in range(len(data['odom'])-1, -1, -1):
             if (i not in data['patches']):
                 data['joystick'].pop(i)
                 data['accel'].pop(i)
@@ -121,7 +134,6 @@ class ListenRecordData:
             patches.append(data['patches'][sorted_keys[i]])
         data['patches'] = patches
 
-
         # dont save image and vectornav
         del data['image']
         del data['vectornav']
@@ -133,14 +145,19 @@ class ListenRecordData:
             pickle.dump(data, open(path, 'wb'))
             cprint('Saved data successfully ', 'yellow', attrs=['blink'])
 
-    @staticmethod
-    def process_bev_image(data):
-        images, src_images = [], []
-        for i in range(len(data['image_msg'])):
-            bevimage, src_image = ListenRecordData.camera_imu_homography(data['vectornav'][i], data['image_msg'][i])
-            images.append(bevimage)
-            src_images.append(src_image)
-        return images, src_images
+    # def process_bev_image(self, data):
+    #     images = []
+    #     for i in tqdm(range(len(data['image_msg']))):
+    #         bevimage, _ = ListenRecordData.camera_imu_homography(data['vectornav'][i], data['image_msg'][i])
+    #         images.append(bevimage)
+    #     return images
+
+    def process_bev_image(self, data):
+        bevimages = []
+        for i in tqdm(range(len(data['image_msg']))):
+            bevimage, _ = ListenRecordData.camera_imu_homography(data['vectornav'][i], data['image_msg'][i])
+            bevimages.append(bevimage)
+        return bevimages
 
     @staticmethod
     def process_patches(data, processed_data):
@@ -161,6 +178,13 @@ class ListenRecordData:
                     patches[i].append(patch)
             if not found_patch:
                 print("Unable to find patch for idx: ", i)
+            else:
+                # show the image and the patches
+                cv2.imshow('image', processed_data['image'][i])
+                for patch in patches[i]:
+                    cv2.imshow('patch', patch)
+                    cv2.waitKey(0)
+
         return patches
 
     @staticmethod
@@ -411,19 +435,21 @@ if __name__ == '__main__':
         if rosbag_play_process.poll() is not None:
             print('rosbag_play process has stopped')
 
-            # check if there is some data left to be stored in the buffer
-            if data_recorder.counter % BATCH_SIZE > 0:
-                print('There is some data left in the buffer with length :', data_recorder.counter % BATCH_SIZE)
-                for key in data_recorder.msg_data.keys():
-                    data_recorder.msg_data[key] = data_recorder.msg_data[key][-data_recorder.counter % BATCH_SIZE:]
-                data_recorder.save_data(copy.deepcopy(data_recorder.msg_data), data_recorder.batch_idx + 1)
-                print('Buffer data has been stored')
-            else:
-                print('No data left in the buffer')
+            # # check if there is some data left to be stored in the buffer
+            # if data_recorder.counter % BATCH_SIZE > 0:
+            #     print('There is some data left in the buffer with length :', data_recorder.counter % BATCH_SIZE)
+            #     for key in data_recorder.msg_data.keys():
+            #         data_recorder.msg_data[key] = data_recorder.msg_data[key][-data_recorder.counter % BATCH_SIZE:]
+            #     data_recorder.save_data(copy.deepcopy(data_recorder.msg_data), data_recorder.batch_idx + 1)
+            #     print('Buffer data has been stored')
+            # else:
+            #     print('No data left in the buffer')
+            #
+            # print('waiting for ', len(data_recorder.open_thread_lists), ' threads to finish ... ')
+            # for threads in tqdm(data_recorder.open_thread_lists):
+            #     threads.join()
 
-            print('waiting for ', len(data_recorder.open_thread_lists), ' threads to finish ... ')
-            for threads in tqdm(data_recorder.open_thread_lists):
-                threads.join()
+            data_recorder.save_data(copy.deepcopy(data_recorder.msg_data), data_recorder.batch_idx + 1)
             exit(0)
 
     rospy.spin()

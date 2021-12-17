@@ -5,7 +5,7 @@ import glob
 import numpy as np
 from tqdm import tqdm
 
-dataset_path = '/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train3_data'
+dataset_path = '/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train5_data'
 pickle_file_paths = glob.glob(dataset_path + '/*.pkl')
 
 print(pickle_file_paths)
