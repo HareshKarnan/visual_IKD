@@ -30,35 +30,27 @@ class LiveDataProcessor(object):
             cprint('Parsed Config file successfully ', 'yellow', attrs=['blink'])
             print(self.config)
 
-        # image = message_filters.Subscriber("/terrain_patch/compressed", CompressedImage)
-        image = message_filters.Subscriber("/webcam/image_raw/compressed", CompressedImage)
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
         accel = message_filters.Subscriber('/camera/accel/sample', Imu)
         gyro = message_filters.Subscriber('/camera/gyro/sample', Imu)
-        vectornavimu = message_filters.Subscriber("/vectornav/IMU", Imu)
 
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, accel, gyro, vectornavimu], 20, 0.05, allow_headerless=True)
+        ts = message_filters.ApproximateTimeSynchronizer([odom, accel, gyro], 20, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
 
-        self.data = {'image': [], 'odom': [], 'accel': [], 'gyro': []}
+        self.data = {'accel': [], 'gyro': [], 'odom': []}
         self.n = 0
 
-    def callback(self, image, odom, accel, gyro, vectornavimu):
+    def callback(self, odom, accel, gyro):
         self.n += 1
         print('Received messages :: ', self.n)
 
-        # convert front cam image to top cam image
-        bevimage = self.camera_imu_homography(vectornavimu, image)
 
-        # convert odom to numpy array
-        odom_np = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
+        self.data['odom'].append(np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z]))
+        self.data['accel'].append(np.array([accel.linear_acceleration.x, accel.linear_acceleration.y, accel.linear_acceleration.z]))
+        self.data['gyro'].append(np.array([gyro.angular_velocity.x, gyro.angular_velocity.y, gyro.angular_velocity.z]))
 
-        self.data['image'] = cv2.resize(bevimage, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
-        self.data['image'] = self.data['image']/255.0
-        self.data['accel'] = np.array([accel.linear_acceleration.x, accel.linear_acceleration.y, accel.linear_acceleration.z])
-        self.data['gyro'] = np.array([gyro.angular_velocity.x, gyro.angular_velocity.y, gyro.angular_velocity.z])
-
-        self.data['odom'] = (self.data['odom'] + [odom_np])[:self.history_len]
+        # retain the history
+        self.data = {k: v[-self.history_len:] for k, v in self.data.items()}
 
     def get_data(self):
         return self.data
@@ -73,44 +65,6 @@ class LiveDataProcessor(object):
         H12 = R12 - ((t12 @ n1.T) / d)
         H12 /= H12[2, 2]
         return H12
-
-    def camera_imu_homography(self, imu, image):
-        orientation_quat = [imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w]
-
-        C_i = np.array(
-            [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0,
-             1.0]).reshape(
-            (3, 3))
-
-        R_imu_world = R.from_quat(orientation_quat)
-        R_imu_world = R_imu_world.as_euler('xyz', degrees=True)
-        R_imu_world[0], R_imu_world[1] = -R_imu_world[0], R_imu_world[1]
-        R_imu_world[2] = 0.
-
-        R_imu_world = R_imu_world
-        R_imu_world = R.from_euler('xyz', R_imu_world, degrees=True)
-
-        R_cam_imu = R.from_euler("xyz", [90, -90, 0], degrees=True)
-        R1 = R_cam_imu * R_imu_world
-        R1 = R1.as_matrix()
-
-        R2 = R.from_euler("xyz", [0, 0, -90], degrees=True).as_matrix()
-        t1 = R1 @ np.array([0., 0., 0.5]).reshape((3, 1))
-        t2 = R2 @ np.array([-2.5, -0., 6.0]).reshape((3, 1))
-        n = np.array([0, 0, 1]).reshape((3, 1))
-        n1 = R1 @ n
-
-        H12 = self.homography_camera_displacement(R1, R2, t1, t2, n1)
-        homography_matrix = C_i @ H12 @ np.linalg.inv(C_i)
-        homography_matrix /= homography_matrix[2, 2]
-
-        img = np.fromstring(image.data, np.uint8)
-        img = cv2.imdecode(img, cv2.IMREAD_COLOR)
-
-        output = cv2.warpPerspective(img, homography_matrix, (1280, 720))
-        # output = output[420:520, 540:740]
-
-        return output
 
 
 class IKDNode(object):
@@ -147,16 +101,17 @@ class IKDNode(object):
 
         odom_history = data['odom']
         desired_odom = [np.array([msg.velocity, 0, msg.velocity * msg.curvature])]
+
+        # form the input tensors
         accel = torch.tensor(data['accel'])
         gyro = torch.tensor(data['gyro'])
-        patch = data['image']
-        patch = torch.tensor(patch).permute(2, 0, 1).to(self.device)
         odom_input = np.concatenate((odom_history, desired_odom))
         odom_input = torch.tensor(odom_input.flatten())
+
         non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
 
         with torch.no_grad():
-            output = self.model(non_visual_input.unsqueeze(0).float(), patch.unsqueeze(0).float())
+            output = self.model(non_visual_input.unsqueeze(0).float())
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
@@ -167,7 +122,6 @@ class IKDNode(object):
         print("Output Nav Command : ", v, w/v)
 
         self.nav_publisher.publish(self.nav_cmd)
-
 
 
 if __name__ == '__main__':
@@ -183,13 +137,6 @@ if __name__ == '__main__':
 
     data_processor = LiveDataProcessor(args.config_path, args.history_len)
     node = IKDNode(data_processor, args.model_path, args.history_len, args.input_topic, args.output_topic)
-
-    # import signal
-    # def handler(signum, frame):
-    #     print("Received signal {}, shutting down".format(signum))
-    #     exit(signum)
-    # signal.signal(signal.SIGINT, handler)
-    # node.listen()
 
     while not rospy.is_shutdown():
         rospy.spin()

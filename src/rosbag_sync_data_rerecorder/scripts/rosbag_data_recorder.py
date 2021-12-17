@@ -22,7 +22,7 @@ import threading
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.2 * PATCH_SIZE * PATCH_SIZE
 ACTUATION_LATENCY = 0.1
-BATCH_SIZE = 64
+BATCH_SIZE = 256
 
 class ListenRecordData:
     def __init__(self, config_path, save_data_path, rosbag_play_process):
@@ -121,11 +121,17 @@ class ListenRecordData:
             patches.append(data['patches'][sorted_keys[i]])
         data['patches'] = patches
 
-        # save data
-        cprint('Saving data...{}'.format(len(data['odom'])), 'yellow')
-        path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(batch_idx))
-        pickle.dump(data, open(path, 'wb'))
-        cprint('Saved data successfully ', 'yellow', attrs=['blink'])
+
+        # dont save image and vectornav
+        del data['image']
+        del data['vectornav']
+
+        if len(data['odom']) > 0:
+            # save data
+            cprint('Saving data...{}'.format(len(data['odom'])), 'yellow')
+            path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(batch_idx))
+            pickle.dump(data, open(path, 'wb'))
+            cprint('Saved data successfully ', 'yellow', attrs=['blink'])
 
     @staticmethod
     def process_bev_image(data):
@@ -146,7 +152,8 @@ class ListenRecordData:
                 prev_image = processed_data['image'][j]
                 prev_odom = data['odom_msg'][j]
                 # cv2.imshow('src_image', processed_data['src_image'][i])
-                patch, patch_black_pct, curr_img, vis_img = ListenRecordData.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist, prev_odom.twist.twist, prev_image, processed_data['image'][i])
+                patch, patch_black_pct, curr_img, vis_img = ListenRecordData.get_patch_from_odom_delta(curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist,
+                                                                                                       prev_odom.twist.twist, prev_image, processed_data['image'][i])
                 if patch is not None:
                     found_patch = True
                     if i not in patches:
