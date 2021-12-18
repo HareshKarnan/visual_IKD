@@ -90,6 +90,12 @@ class ListenRecordData:
         #     print('Resuming rosbag play process')
         #     pyautogui.press('space')
 
+    def save_data_batchwise(self):
+        for i in range(0, self.batch_idx, BATCH_SIZE):
+            data = {}
+
+
+
     def save_data(self, msg_data, batch_idx):
         data = {}
         # process joystick
@@ -103,18 +109,21 @@ class ListenRecordData:
         del msg_data['accel_msg']
         del msg_data['gyro_msg']
 
-        # convert egocentric image view into a bird's eye view based on the IMU data
-        print('Processing bev image')
-        data['image'] = self.process_bev_image(msg_data)
-        del msg_data['image_msg']
-
-        print('Processing patches')
-        data['patches'] = self.process_patches(msg_data, data)
-
         # process odom
         print('Processing odom data')
         data['odom'] = self.process_odom_vel_data(msg_data)
         data['vectornav'] = msg_data['vectornav']
+
+        # # convert egocentric image view into a bird's eye view based on the IMU data
+        # print('Processing bev image')
+        # data['image'] = self.process_bev_image(msg_data)
+        #
+        # print('Processing patches')
+        # data['patches'] = self.process_patches(msg_data, data)
+
+        data['patches'] = self.process_bev_image_and_patches(msg_data)
+
+        del msg_data['image_msg']
         del msg_data['odom_msg']
         del msg_data['vectornav']
 
@@ -124,7 +133,6 @@ class ListenRecordData:
                 data['joystick'].pop(i)
                 data['accel'].pop(i)
                 data['gyro'].pop(i)
-                data['image'].pop(i)
                 data['odom'].pop(i)
                 data['vectornav'].pop(i)
         assert(len(data['odom']) == len(data['patches'].keys()))
@@ -134,8 +142,7 @@ class ListenRecordData:
             patches.append(data['patches'][sorted_keys[i]])
         data['patches'] = patches
 
-        # dont save image and vectornav
-        del data['image']
+        # dont save vectornav
         del data['vectornav']
 
         if len(data['odom']) > 0:
@@ -145,12 +152,45 @@ class ListenRecordData:
             pickle.dump(data, open(path, 'wb'))
             cprint('Saved data successfully ', 'yellow', attrs=['blink'])
 
-    # def process_bev_image(self, data):
-    #     images = []
-    #     for i in tqdm(range(len(data['image_msg']))):
-    #         bevimage, _ = ListenRecordData.camera_imu_homography(data['vectornav'][i], data['image_msg'][i])
-    #         images.append(bevimage)
-    #     return images
+    def process_bev_image_and_patches(self, msg_data):
+        processed_data = {'image':[]}
+        msg_data['patches'] = {}
+
+        for i in tqdm(range(len(msg_data['image_msg']))):
+            bevimage, _ = ListenRecordData.camera_imu_homography(msg_data['vectornav'][i], msg_data['image_msg'][i])
+            processed_data['image'].append(bevimage)
+
+            # now find the patches for this image
+            curr_odom = msg_data['odom_msg'][i]
+
+            found_patch = False
+            for j in range(i, max(i-30, 0), -2):
+                prev_image = processed_data['image'][j]
+                prev_odom = msg_data['odom_msg'][j]
+                # cv2.imshow('src_image', processed_data['src_image'][i])
+                patch, patch_black_pct, curr_img, vis_img = ListenRecordData.get_patch_from_odom_delta(
+                    curr_odom.pose.pose, prev_odom.pose.pose, curr_odom.twist.twist,
+                    prev_odom.twist.twist, prev_image, processed_data['image'][i])
+                if patch is not None:
+                    found_patch = True
+                    if i not in msg_data['patches']:
+                        msg_data['patches'][i] = []
+                    msg_data['patches'][i].append(patch)
+            if not found_patch:
+                print("Unable to find patch for idx: ", i)
+            # else:
+            #     # show the image and the patches
+            #     cv2.imshow('image', processed_data['image'][i])
+            #     for patch in msg_data['patches'][i]:
+            #         cv2.imshow('patch', patch)
+            #         cv2.waitKey(0)
+
+            # remove the i-30th image from RAM
+            if i > 30:
+                processed_data['image'][i-29] = None
+
+        return msg_data['patches']
+
 
     def process_bev_image(self, data):
         bevimages = []
@@ -424,7 +464,7 @@ if __name__ == '__main__':
         raise FileNotFoundError('ROS bag file not found')
 
     # start a subprocess to run the rosbag
-    rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '2'])
+    rosbag_play_process = subprocess.Popen(['rosbag', 'play', rosbag_path, '-r', '1'])
 
     data_recorder = ListenRecordData(config_path=config_path,
                                      save_data_path=save_data_path,
