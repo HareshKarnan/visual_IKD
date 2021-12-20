@@ -99,13 +99,18 @@ class IKDNode(object):
 
     def navCallback(self, msg):
         print("Received Nav Command : ", msg.velocity, msg.curvature)
+        if msg.velocity < 0.05:
+            self.nav_cmd.velocity = 0.0
+            self.nav_cmd.curvature = 0.0
+            self.nav_publisher.publish(self.nav_cmd)
+            return
 
         data = self.data_processor.get_data()
         if len(data['odom']) < self.history_len:
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
             return
         else:
-            print("Data processor initialized, listening for commands")
+            pass
 
         odom_history = np.asarray(data['odom']).flatten()
         desired_odom = np.array([msg.velocity, 0, msg.velocity * msg.curvature])
