@@ -99,7 +99,7 @@ class IKDNode(object):
 
     def navCallback(self, msg):
         print("Received Nav Command : ", msg.velocity, msg.curvature)
-        if msg.velocity < 0.05:
+        if msg.velocity < 0.1:
             self.nav_cmd.velocity = 0.0
             self.nav_cmd.curvature = 0.0
             self.nav_publisher.publish(self.nav_cmd)
