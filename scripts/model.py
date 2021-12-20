@@ -17,29 +17,46 @@ class VisualIKDNet(nn.Module):
             nn.Conv2d(64, 128, kernel_size=3, stride=2),
             nn.BatchNorm2d(128), nn.PReLU(), # 7x7
             nn.Flatten(),
-            nn.Linear(7*7*128, hidden_size), nn.Tanh(),
-            nn.Linear(hidden_size, 16), nn.Tanh(),
+            nn.Linear(7*7*128, hidden_size), nn.PReLU(),
+            nn.Linear(hidden_size, 16)
         )
 
-        self.trunk = nn.Sequential(
-            nn.Linear(input_size + 16, hidden_size), nn.Tanh(),
-            nn.Linear(hidden_size, hidden_size), nn.Tanh(),
+        self.imu_net = nn.Sequential(
+            nn.Linear(200 * 3 + 60 * 3, 128), nn.BatchNorm1d(128), nn.PReLU(),
+            nn.Linear(128, 64), nn.BatchNorm1d(64), nn.PReLU(),
+            nn.Linear(64, 16)
+        )
+
+        self.ikdmodel = nn.Sequential(
+            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16 + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size)
         )
 
-    def forward(self, non_image, image):
+
+    def forward(self, accel, gyro, odom, image):
         visual_embedding = self.visual_encoder(image)
-        output = self.trunk(torch.cat((non_image, visual_embedding), dim=1))
-        return output
+        accel_gyro = torch.cat((accel, gyro), dim=1)
+        imu_embedding = self.imu_net(accel_gyro)
+        return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
 
 class SimpleIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
         super(SimpleIKDNet, self).__init__()
-        self.trunk = nn.Sequential(
-            nn.Linear(input_size, hidden_size), nn.Tanh(),
-            nn.Linear(hidden_size, hidden_size), nn.Tanh(),
+        self.imu_net = nn.Sequential(
+            nn.Linear(200*3+60*3, 128), nn.BatchNorm1d(128), nn.PReLU(),
+            nn.Linear(128, 64), nn.BatchNorm1d(64), nn.PReLU(),
+            nn.Linear(64, 16)
+        )
+        self.ikdmodel = nn.Sequential(
+            nn.Linear(input_size - (200*3+60*3) + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size)
         )
 
-    def forward(self, non_image):
-        return self.trunk(non_image)
+    def forward(self, accel, gyro, odom):
+        accel_gyro = torch.cat((accel, gyro), dim=1)
+        imu_embedding = self.imu_net(accel_gyro)
+        return self.ikdmodel(torch.cat((odom, imu_embedding), dim=1))

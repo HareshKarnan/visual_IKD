@@ -31,40 +31,45 @@ class LiveDataProcessor(object):
             print(self.config)
 
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
-        accel = message_filters.Subscriber('/camera/accel/sample', Imu)
-        gyro = message_filters.Subscriber('/camera/gyro/sample', Imu)
 
-        ts = message_filters.ApproximateTimeSynchronizer([odom, accel, gyro], 20, 0.05, allow_headerless=True)
+        # subscribe to accel and gyro topics
+        rospy.Subscriber('/camera/accel/sample', Imu, self.accel_callback) #60 hz
+        rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) #60 hz
+
+        ts = message_filters.ApproximateTimeSynchronizer([odom], 10, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
 
-        self.data = {'accel': [], 'gyro': [], 'odom': []}
+        self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
+        self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
+
+        self.data = {'accel': None, 'gyro': None, 'odom': []}
         self.n = 0
 
-    def callback(self, odom, accel, gyro):
+    def callback(self, odom):
         self.n += 1
         print('Received messages :: ', self.n)
 
-
         self.data['odom'].append(np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z]))
-        self.data['accel'].append(np.array([accel.linear_acceleration.x, accel.linear_acceleration.y, accel.linear_acceleration.z]))
-        self.data['gyro'].append(np.array([gyro.angular_velocity.x, gyro.angular_velocity.y, gyro.angular_velocity.z]))
 
-        # retain the history
-        self.data = {k: v[-self.history_len:] for k, v in self.data.items()}
+        # retain the history of odom
+        self.data['odom'] = self.data['odom'][-self.history_len:]
+
+        # retain the history of accel and gyro
+        self.data['accel'] = self.accel_msgs.flatten()
+        self.data['gyro'] = self.gyro_msgs.flatten()
 
     def get_data(self):
         return self.data
 
-    @staticmethod
-    def homography_camera_displacement(R1, R2, t1, t2, n1):
-        R12 = R2 @ R1.T
-        t12 = R2 @ (- R1.T @ t1) + t2
-        # d is distance from plane to t1.
-        d = np.linalg.norm(n1.dot(t1.T))
+    def accel_callback(self, msg):
+        # add to queue self.accel_msgs
+        self.accel_msgs = np.roll(self.accel_msgs, -1, axis=0)
+        self.accel_msgs[-1] = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
 
-        H12 = R12 - ((t12 @ n1.T) / d)
-        H12 /= H12[2, 2]
-        return H12
+    def gyro_callback(self, msg):
+        # add to queue self.gyro_msgs
+        self.gyro_msgs = np.roll(self.gyro_msgs, -1, axis=0)
+        self.gyro_msgs[-1] = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
 
 
 class IKDNode(object):
@@ -99,7 +104,7 @@ class IKDNode(object):
         else:
             print("Data processor initialized, listening for commands")
 
-        odom_history = data['odom']
+        odom_history = np.asarray(data['odom']).flatten()
         desired_odom = [np.array([msg.velocity, 0, msg.velocity * msg.curvature])]
 
         # form the input tensors
@@ -108,10 +113,13 @@ class IKDNode(object):
         odom_input = np.concatenate((odom_history, desired_odom))
         odom_input = torch.tensor(odom_input.flatten())
 
-        non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
+        # non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
 
         with torch.no_grad():
-            output = self.model(non_visual_input.unsqueeze(0).float())
+            # output = self.model(non_visual_input.unsqueeze(0).float())
+            output = self.model(accel.unsqueeze(0).float(),
+                                gyro.unsqueeze(0).float(),
+                                odom_input.unsqueeze(0).float())
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
