@@ -38,13 +38,15 @@ class ListenRecordData:
         image = message_filters.Subscriber("/webcam/image_raw/compressed", CompressedImage)
         vectornavimu = message_filters.Subscriber("/vectornav/IMU", Imu)
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
-        accel = message_filters.Subscriber('/camera/accel/sample', Imu)
-        gyro = message_filters.Subscriber('/camera/gyro/sample', Imu)
         joystick = message_filters.Subscriber('/joystick', Joy)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, accel, gyro, vectornavimu], 10, 0.05, allow_headerless=True)
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu], 10, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
         self.counter = 0
+
+        # subscribe to accel and gyro topics
+        rospy.Subscriber('/camera/accel/sample', Imu, self.accel_callback) # 60hz
+        rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) # 200hz
 
         self.msg_data = {
             'image_msg': [],
@@ -58,39 +60,33 @@ class ListenRecordData:
 
         self.open_thread_lists = []
 
-    def callback(self, image, odom, joystick, accel, gyro, vectornavimu):
+        self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
+        self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
+
+    def callback(self, image, odom, joystick, vectornavimu):
         print('Received messages :: ', self.counter, ' ___')
     
         self.msg_data['image_msg'].append(image)
         self.msg_data['odom_msg'].append(odom)
         self.msg_data['joystick_msg'].append(joystick)
-        self.msg_data['accel_msg'].append(accel)
-        self.msg_data['gyro_msg'].append(gyro)
         self.msg_data['vectornav'].append(vectornavimu)
+        self.msg_data['accel_msg'].append(self.accel_msgs.flatten())
+        self.msg_data['gyro_msg'].append(self.gyro_msgs.flatten())
         self.counter += 1
 
-        if (len(self.msg_data['image_msg']) > BATCH_SIZE):
-            for key in self.msg_data.keys():
-                self.msg_data[key] = self.msg_data[key][-BATCH_SIZE:]
+        # if (len(self.msg_data['image_msg']) > BATCH_SIZE):
+        #     for key in self.msg_data.keys():
+        #         self.msg_data[key] = self.msg_data[key][-BATCH_SIZE:]
 
-        # if (self.counter % BATCH_SIZE == 0):
-        #
-        #     print('Pause rosbag play process')
-        #     pyautogui.press('space')
-        #
-        #     self.batch_idx += 1
-        #     data_save_thread = threading.Thread(target=self.save_data, args=(copy.deepcopy(self.msg_data), self.batch_idx))
-        #     data_save_thread.start()
-        #     cprint('Saving data.. ', 'yellow', attrs=['bold'])
-        #     self.open_thread_lists.append(data_save_thread)
-        #     data_save_thread.join()
-        #     print('Resuming rosbag play process')
-        #     pyautogui.press('space')
+    def accel_callback(self, msg):
+        # add to queue self.accel_msgs
+        self.accel_msgs = np.roll(self.accel_msgs, -1, axis=0)
+        self.accel_msgs[-1] = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
 
-    def save_data_batchwise(self):
-        for i in range(0, self.batch_idx, BATCH_SIZE):
-            data = {}
-
+    def gyro_callback(self, msg):
+        # add to queue self.gyro_msgs
+        self.gyro_msgs = np.roll(self.gyro_msgs, -1, axis=0)
+        self.gyro_msgs[-1] = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
 
 
     def save_data(self, msg_data, batch_idx):
@@ -102,7 +98,8 @@ class ListenRecordData:
 
         # process accel, gyro data
         print('Processing accel, gyro data')
-        data['accel'], data['gyro'] = self.process_accel_gyro_data(msg_data)
+        # data['accel'], data['gyro'] = self.process_accel_gyro_data(msg_data)
+        data['accel'], data['gyro'] = msg_data['accel_msg'], msg_data['gyro_msg']
         del msg_data['accel_msg']
         del msg_data['gyro_msg']
 
@@ -161,7 +158,7 @@ class ListenRecordData:
             curr_odom = msg_data['odom_msg'][i]
 
             found_patch = False
-            for j in range(i, max(i-30, 0), -2):
+            for j in range(i, max(i-30, 0), -1):
                 prev_image = processed_data['image'][j]
                 prev_odom = msg_data['odom_msg'][j]
                 # cv2.imshow('src_image', processed_data['src_image'][i])
@@ -173,6 +170,7 @@ class ListenRecordData:
                     if i not in msg_data['patches']:
                         msg_data['patches'][i] = []
                     msg_data['patches'][i].append(patch)
+                if len(msg_data['patches'][i]) > 10: break
             if not found_patch:
                 print("Unable to find patch for idx: ", i)
             # else:

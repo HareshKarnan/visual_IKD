@@ -2,3 +2,11 @@ data/*
 models/*
 lightning_logs/*
 **/__pycache__/*
+.catkin_tools/
+.idea/
+build/
+devel/
+logs/
+src/rosbag_sync_data_rerecorder/data
+graph.png
+

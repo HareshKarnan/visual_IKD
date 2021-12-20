@@ -12,7 +12,7 @@ from termcolor import cprint
 import yaml
 from scipy.spatial.transform import Rotation as R
 
-from scripts.model import VisualIKDNet
+from scripts.model import SimpleIKDNet
 
 import roslib
 roslib.load_manifest('amrl_msgs')
@@ -31,40 +31,43 @@ class LiveDataProcessor(object):
             print(self.config)
 
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
-        accel = message_filters.Subscriber('/camera/accel/sample', Imu)
-        gyro = message_filters.Subscriber('/camera/gyro/sample', Imu)
 
-        ts = message_filters.ApproximateTimeSynchronizer([odom, accel, gyro], 20, 0.05, allow_headerless=True)
+        # subscribe to accel and gyro topics
+        rospy.Subscriber('/camera/accel/sample', Imu, self.accel_callback) #60 hz
+        rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) #60 hz
+
+        ts = message_filters.ApproximateTimeSynchronizer([odom], 10, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
 
-        self.data = {'accel': [], 'gyro': [], 'odom': []}
+        self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
+        self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
+
+        self.data = {'accel': None, 'gyro': None, 'odom': []}
         self.n = 0
 
-    def callback(self, odom, accel, gyro):
+    def callback(self, odom):
         self.n += 1
-        print('Received messages :: ', self.n)
-
-
         self.data['odom'].append(np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z]))
-        self.data['accel'].append(np.array([accel.linear_acceleration.x, accel.linear_acceleration.y, accel.linear_acceleration.z]))
-        self.data['gyro'].append(np.array([gyro.angular_velocity.x, gyro.angular_velocity.y, gyro.angular_velocity.z]))
 
-        # retain the history
-        self.data = {k: v[-self.history_len:] for k, v in self.data.items()}
+        # retain the history of odom
+        self.data['odom'] = self.data['odom'][-self.history_len:]
+
+        # retain the history of accel and gyro
+        self.data['accel'] = self.accel_msgs.flatten()
+        self.data['gyro'] = self.gyro_msgs.flatten()
 
     def get_data(self):
         return self.data
 
-    @staticmethod
-    def homography_camera_displacement(R1, R2, t1, t2, n1):
-        R12 = R2 @ R1.T
-        t12 = R2 @ (- R1.T @ t1) + t2
-        # d is distance from plane to t1.
-        d = np.linalg.norm(n1.dot(t1.T))
+    def accel_callback(self, msg):
+        # add to queue self.accel_msgs
+        self.accel_msgs = np.roll(self.accel_msgs, -1, axis=0)
+        self.accel_msgs[-1] = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
 
-        H12 = R12 - ((t12 @ n1.T) / d)
-        H12 /= H12[2, 2]
-        return H12
+    def gyro_callback(self, msg):
+        # add to queue self.gyro_msgs
+        self.gyro_msgs = np.roll(self.gyro_msgs, -1, axis=0)
+        self.gyro_msgs[-1] = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
 
 
 class IKDNode(object):
@@ -76,12 +79,17 @@ class IKDNode(object):
         self.input_topic = input_topic
         self.output_topic = output_topic
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        cprint('Using device: {}'.format(self.device), 'yellow', attrs=['bold'])
+
         print("Loading Model...")
-        self.model = VisualIKDNet(input_size=6 + 3*(self.history_len+1), output_size=2, hidden_size=32).to(device=self.device)
+        self.model = SimpleIKDNet(input_size=3*60 + 3*200 + 3*(args.history_len+1),
+                                  output_size=2,
+                                  hidden_size=32).to(device=self.device)
         if self.model_path is not None:
             self.model.load_state_dict(torch.load(self.model_path))
         self.model.eval()
         print("Loaded Model")
+
         self.nav_cmd = AckermannCurvatureDriveMsg()
         self.nav_cmd.velocity = 0.0
         self.nav_cmd.curvature = 0.0
@@ -91,27 +99,34 @@ class IKDNode(object):
 
     def navCallback(self, msg):
         print("Received Nav Command : ", msg.velocity, msg.curvature)
+        if msg.velocity < 0.05:
+            self.nav_cmd.velocity = 0.0
+            self.nav_cmd.curvature = 0.0
+            self.nav_publisher.publish(self.nav_cmd)
+            return
 
         data = self.data_processor.get_data()
         if len(data['odom']) < self.history_len:
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
             return
         else:
-            print("Data processor initialized, listening for commands")
+            pass
 
-        odom_history = data['odom']
-        desired_odom = [np.array([msg.velocity, 0, msg.velocity * msg.curvature])]
+        odom_history = np.asarray(data['odom']).flatten()
+        desired_odom = np.array([msg.velocity, 0, msg.velocity * msg.curvature])
 
         # form the input tensors
-        accel = torch.tensor(data['accel'])
-        gyro = torch.tensor(data['gyro'])
+        accel = torch.tensor(data['accel']).to(device=self.device)
+        gyro = torch.tensor(data['gyro']).to(device=self.device)
         odom_input = np.concatenate((odom_history, desired_odom))
-        odom_input = torch.tensor(odom_input.flatten())
+        odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
 
-        non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
+        # non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
 
         with torch.no_grad():
-            output = self.model(non_visual_input.unsqueeze(0).float())
+            output = self.model(accel.unsqueeze(0).float(),
+                                gyro.unsqueeze(0).float(),
+                                odom_input.unsqueeze(0).float())
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
@@ -130,7 +145,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_topic', default='/ackermann_drive_init', type=str)
     parser.add_argument('--output_topic', default='/ackermann_curvature_drive',  type=str)
     parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
-    parser.add_argument('--history_len', type=int, default=10)
+    parser.add_argument('--history_len', type=int, default=5)
     args = parser.parse_args()
 
     rospy.init_node('ikd_node', anonymous=True)
