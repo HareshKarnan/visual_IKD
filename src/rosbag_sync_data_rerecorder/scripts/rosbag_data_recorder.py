@@ -15,10 +15,7 @@ from termcolor import cprint
 import yaml
 from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
-import signal
 import subprocess
-import threading
-import pyautogui
 
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.2 * PATCH_SIZE * PATCH_SIZE

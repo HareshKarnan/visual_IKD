@@ -1,7 +1,9 @@
 <launch>
     <arg name="dataset" doc="prefix for the dataset (e.g. train1)"/>
+    <arg name="data_base_dir" default="/robodata/ut_alphatruck_logs/visualIKD/" doc="prefix for the bag-file containing folder"/>
+    <arg name="out_base_dir" default="/robodata/kvsikand/visualIKD/" doc="prefix for the output data folder"/>
     <param name="config_path" type="str" value="$(find rosbag_sync_data_rerecorder)/config/alphatruck.yaml" />
-    <param name="rosbag_path" type="str" value="/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/$(arg dataset).bag" />
-    <param name="out_path" type="str" value="/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/$(arg dataset)_data/" />
+    <param name="rosbag_path" type="str" value="$(arg data_base_dir)/$(arg dataset).bag" />
+    <param name="out_path" type="str" value="$(arg out_base_dir)/$(arg dataset)_data/" />
     <node name="rosbag_data_recorder" pkg="rosbag_sync_data_rerecorder" type="rosbag_data_recorder.py" output="screen" />
 </launch>

@@ -8,6 +8,6 @@ def get_args():
 	parser.add_argument('--hidden_size', type=int, default=32)
 	parser.add_argument('--use_vision', action='store_true', default=False)
 	parser.add_argument('--data_dir', type=str,
-						default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/')
+						default='/robodata/ut_alphatruck_logs/visualIKD/')
 	parser.add_argument('--dataset_names', type=str, nargs='+', default=['train1'])
 	return parser.parse_args()
