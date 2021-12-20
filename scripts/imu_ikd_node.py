@@ -47,8 +47,6 @@ class LiveDataProcessor(object):
 
     def callback(self, odom):
         self.n += 1
-        print('Received messages :: ', self.n)
-
         self.data['odom'].append(np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z]))
 
         # retain the history of odom
@@ -110,7 +108,7 @@ class IKDNode(object):
             print("Data processor initialized, listening for commands")
 
         odom_history = np.asarray(data['odom']).flatten()
-        desired_odom = [np.array([msg.velocity, 0, msg.velocity * msg.curvature])]
+        desired_odom = np.array([msg.velocity, 0, msg.velocity * msg.curvature])
 
         # form the input tensors
         accel = torch.tensor(data['accel'])
