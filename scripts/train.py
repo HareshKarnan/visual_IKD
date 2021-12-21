@@ -9,7 +9,6 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
 import cv2
-from scripts.old.quaternion import *
 from scripts.model import VisualIKDNet, SimpleIKDNet
 from scripts.arguments import get_args
 
