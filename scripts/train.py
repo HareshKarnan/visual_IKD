@@ -11,6 +11,9 @@ import cv2
 import torch
 from scripts.model import VisualIKDNet, SimpleIKDNet
 from scripts.arguments import get_args
+import sys
+# add current directory to path
+sys.path.append(os.getcwd())
 
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size,
