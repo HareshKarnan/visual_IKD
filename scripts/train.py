@@ -1,4 +1,7 @@
 import os
+import sys
+from model import VisualIKDNet, SimpleIKDNet
+from arguments import get_args
 import pickle
 import numpy as np
 import pytorch_lightning as pl
@@ -9,11 +12,6 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
 import cv2
 import torch
-from scripts.model import VisualIKDNet, SimpleIKDNet
-from scripts.arguments import get_args
-import sys
-# add current directory to path
-sys.path.append(os.getcwd())
 
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size,

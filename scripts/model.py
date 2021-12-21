@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from scripts.resnet8_model import ResNet8
+from resnet8_model import ResNet8
 
 class L2Normalize(nn.Module):
     def forward(self, x):
