@@ -94,18 +94,20 @@ class ProcessedBagDataset(Dataset):
         # self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
 
     def __len__(self):
-        return max(self.data['joystick'].shape[0] - self.history_len, 0)
+        return max(self.data['odom'].shape[0], 0)
 
     def __getitem__(self, idx):
         # history of odoms + next state
-        odom_history = self.data['odom'][idx:idx+self.history_len + 1]
-        accel = self.data['accel'][idx + self.history_len - 1]
-        gyro = self.data['gyro'][idx + self.history_len - 1]
-        # accel_history = self.data['accel'][idx:idx+self.history_len]
-        # gyro_history = self.data['gyro'][idx:idx+self.history_len]
-        joystick = self.data['joystick'][idx + self.history_len - 1]
+        odom_curr = self.data['odom'][idx][:3]
+        odom_next = self.data['odom'][idx][-3:]
+        odom_val = np.hstack((odom_curr, odom_next)).flatten()
 
-        patches = self.data['patches'][idx + self.history_len - 1]
+        accel = self.data['accel'][idx]
+        gyro = self.data['gyro'][idx]
+
+        joystick = self.data['joystick'][idx]
+
+        patches = self.data['patches'][idx]
         patch = patches[np.random.randint(0, len(patches))] # pick a random patch
 
         patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
@@ -114,12 +116,7 @@ class ProcessedBagDataset(Dataset):
         # cv2.imshow('disp', patch)
         # cv2.waitKey(0)
 
-        return np.asarray(odom_history).flatten(), joystick, accel, gyro, patch
-        # return np.asarray(odom_history).flatten(), \
-        #        joystick, \
-        #        np.asarray(accel_history).flatten(), \
-        #        np.asarray(gyro_history).flatten(), \
-        #        patch
+        return odom_val, joystick, accel, gyro, patch
 
 class IKDDataModule(pl.LightningDataModule):
     def __init__(self, data_dir, train_dataset_names, val_dataset_names, batch_size, history_len):

@@ -19,11 +19,11 @@ if __name__ == '__main__':
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = IKDModel.load_from_checkpoint('models/19-12-2021-02-14-56.ckpt', use_vision=args.use_vision)
+    model = IKDModel.load_from_checkpoint('models/20-12-2021-16-41-18.ckpt', use_vision=args.use_vision)
     model = model.to(device)
     model.eval()
 
-    data = pickle.load(open('/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train7_data/data_1.pkl', 'rb'))
+    data = pickle.load(open('/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train3_data/data_1.pkl', 'rb'))
 
     # class ProcessedBagDataset(Dataset):
     #     def __init__(self, data, history_len):

@@ -25,3 +25,4 @@ for pickle_file in tqdm(pickle_file_paths):
 
 		print('accel shape : ', data['accel'][i].shape)
 		print('gyro shape : ', data['gyro'][i].shape)
+		print('odom shape : ', data['odom'][i].shape)
