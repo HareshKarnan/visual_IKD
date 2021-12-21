@@ -186,7 +186,7 @@ if __name__ == '__main__':
                          max_epochs=args.max_epochs,
                          callbacks=[early_stopping_cb, model_checkpoint_cb],
                          log_every_n_steps=10,
-                        #  distributed_backend='ddp',
+                         distributed_backend='ddp',
                          stochastic_weight_avg=False,
                          logger=True,
                          )
