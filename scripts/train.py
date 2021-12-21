@@ -70,7 +70,7 @@ class IKDModel(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.ikd_model.parameters(), lr=3e-4, weight_decay=0.0)
+        return torch.optim.AdamW(self.ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
 
 class ProcessedBagDataset(Dataset):
     def __init__(self, data, history_len):
@@ -182,7 +182,7 @@ if __name__ == '__main__':
                                           monitor='val_loss', verbose=True)
 
     print("Training model...")
-    trainer = pl.Trainer(gpus=[0],
+    trainer = pl.Trainer(gpus=[0] if args.num_gpus==1 else [0, 1, 2, 3],
                          max_epochs=args.max_epochs,
                          callbacks=[early_stopping_cb, model_checkpoint_cb],
                          log_every_n_steps=10,
