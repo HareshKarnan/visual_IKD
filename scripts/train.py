@@ -1,6 +1,5 @@
 import os
 import pickle
-
 import numpy as np
 import pytorch_lightning as pl
 from termcolor import cprint
@@ -9,6 +8,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
 import cv2
+import torch
 from scripts.model import VisualIKDNet, SimpleIKDNet
 from scripts.arguments import get_args
 
