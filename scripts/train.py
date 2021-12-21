@@ -193,14 +193,14 @@ if __name__ == '__main__':
 
     trainer.fit(model, dm)
     
-    val_loader = dm.val_dataloader()
-    model.eval()
-    for d in val_loader:
-        _, _, _, _, patch = d
-        patch = patch.to(device).float()
-        vis_embedding = model.visual_encoder(patch)
-        # TODO write these out using tensorboard projector
-        
-
-    cprint("Training complete..", 'green', attrs=['bold'])
+    # val_loader = dm.val_dataloader()
+    # model.eval()
+    # for d in val_loader:
+    #     _, _, _, _, patch = d
+    #     patch = patch.to(device).float()
+    #     vis_embedding = model.visual_encoder(patch)
+    #     # TODO write these out using tensorboard projector
+    #
+    #
+    # cprint("Training complete..", 'green', attrs=['bold'])
 
