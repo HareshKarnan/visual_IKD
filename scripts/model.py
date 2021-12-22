@@ -35,7 +35,6 @@ class VisualIKDNet(nn.Module):
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
-            nn.Dropout(p=0.5)
         )
 
 
@@ -59,7 +58,6 @@ class SimpleIKDNet(nn.Module):
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
-            nn.Dropout(p=0.5)
         )
 
     def forward(self, accel, gyro, odom):
