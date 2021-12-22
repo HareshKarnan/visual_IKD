@@ -67,9 +67,9 @@ class ResNet(nn.Module):
         out = self.layer4(out)
         out = F.avg_pool2d(out, 4)
         out = nn.Flatten()(out)
-        out = self.act(self.dropout(out))
         out = self.act(self.linear1(out))
         out = self.linear2(out)
+        out = self.act(self.dropout(out))
         return out
 
 def ResNet8(output_emb_size=16):
