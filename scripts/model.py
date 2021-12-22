@@ -27,7 +27,8 @@ class VisualIKDNet(nn.Module):
         self.imu_net = nn.Sequential(
             nn.Linear(200 * 3 + 60 * 3, 128), nn.BatchNorm1d(128), nn.PReLU(),
             nn.Linear(128, 64), nn.BatchNorm1d(64), nn.PReLU(),
-            nn.Linear(64, 16)
+            nn.Linear(64, 16),
+            nn.Dropout(p=0.1)
         )
 
         self.ikdmodel = nn.Sequential(
@@ -51,7 +52,8 @@ class SimpleIKDNet(nn.Module):
         self.imu_net = nn.Sequential(
             nn.Linear(200*3+60*3, 128), nn.BatchNorm1d(128), nn.PReLU(),
             nn.Linear(128, 64), nn.BatchNorm1d(64), nn.PReLU(),
-            nn.Linear(64, 16)
+            nn.Linear(64, 16),
+            nn.Dropout(p=0.1)
         )
         self.ikdmodel = nn.Sequential(
             nn.Linear(input_size - (200*3+60*3) + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),

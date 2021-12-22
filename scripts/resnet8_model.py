@@ -49,6 +49,7 @@ class ResNet(nn.Module):
         self.linear1 = nn.Linear(256, 128) #512*exp*block.expansion
         self.linear2 = nn.Linear(128, embedding_size) #512*exp*block.expansion
         self.act = nn.PReLU()
+        self.do = nn.Dropout(p=0.1)
 
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
@@ -68,6 +69,7 @@ class ResNet(nn.Module):
         out = nn.Flatten()(out)
         out = self.act(self.linear1(out))
         out = self.linear2(out)
+        out = self.do(out)
         return out
 
 def ResNet8(output_emb_size=16):
