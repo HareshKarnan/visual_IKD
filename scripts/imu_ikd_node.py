@@ -133,8 +133,8 @@ class IKDNode(object):
 
         # populate with v and w
         self.nav_cmd.velocity = v
-        self.nav_cmd.curvature = w / v
-        print("Output Nav Command : ", v, w/v)
+        self.nav_cmd.curvature = v/w
+        print("Output Nav Command : ", v, v/w)
 
         self.nav_publisher.publish(self.nav_cmd)
 
