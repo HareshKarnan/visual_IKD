@@ -9,6 +9,7 @@ import rospy
 import cv2
 import matplotlib.pyplot as plt
 from sensor_msgs.msg import CompressedImage, Joy, Imu
+from geometry_msgs.msg import TwistStamped
 from nav_msgs.msg import Odometry
 import message_filters
 from termcolor import cprint
@@ -38,7 +39,8 @@ class ListenRecordData:
         vectornavimu = message_filters.Subscriber("/vectornav/IMU", Imu)
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
         joystick = message_filters.Subscriber('/joystick', Joy)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu], 10, 0.05, allow_headerless=True)
+        vesc_drive = message_filters.Subscriber('/vesc_drive', TwistStamped)
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu, vesc_drive], 10, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
         self.counter = 0
@@ -55,6 +57,7 @@ class ListenRecordData:
             'accel_msg': [],
             'gyro_msg': [],
             'vectornav': [],
+            'vesc_drive_msg': [],
         }
 
         self.open_thread_lists = []
@@ -62,7 +65,7 @@ class ListenRecordData:
         self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
         self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
 
-    def callback(self, image, odom, joystick, vectornavimu):
+    def callback(self, image, odom, joystick, vectornavimu, vesc_drive):
         print('Received messages :: ', self.counter, ' ___')
     
         self.msg_data['image_msg'].append(image)
@@ -71,6 +74,7 @@ class ListenRecordData:
         self.msg_data['vectornav'].append(vectornavimu)
         self.msg_data['accel_msg'].append(self.accel_msgs.flatten())
         self.msg_data['gyro_msg'].append(self.gyro_msgs.flatten())
+        self.msg_data['vesc_drive_msg'].append(vesc_drive)
         self.counter += 1
 
     def accel_callback(self, msg):
@@ -90,6 +94,11 @@ class ListenRecordData:
         print('Processing joystick data')
         data['joystick'] = self.process_joystick_data(msg_data, self.config)
         del msg_data['joystick_msg']
+
+        # process vesc_drive
+        print('Processing vesc_drive data')
+        data['vescdrive'] = self.process_vesc_drive_data(msg_data)
+        del msg_data['vesc_drive_msg']
 
         # process accel, gyro data
         print('Processing accel, gyro data')
@@ -127,6 +136,7 @@ class ListenRecordData:
                 data['gyro'].pop(i)
                 data['odom'].pop(i)
                 data['vectornav'].pop(i)
+                data['vescdrive'].pop(i)
         assert(len(data['odom']) == len(data['patches'].keys()))
         patches = []
         sorted_keys = sorted(data['patches'].keys())
@@ -151,6 +161,14 @@ class ListenRecordData:
             path = os.path.join(self.save_data_path, 'data_{}.pkl'.format(batch_idx))
             pickle.dump(data, open(path, 'wb'))
             cprint('Saved data successfully ', 'yellow', attrs=['blink'])
+
+    def process_vesc_drive_data(self, msg_data):
+        # process vesc_drive
+        vesc_drive = []
+        for i in range(len(msg_data['vesc_drive_msg'])):
+            vesc_drive.append([msg_data['vesc_drive_msg'][i].twist.linear.x, msg_data['vesc_drive_msg'][i].twist.angular.z])
+        return vesc_drive
+
 
     def process_bev_image_and_patches(self, msg_data):
         processed_data = {'image':[]}
@@ -466,6 +484,7 @@ if __name__ == '__main__':
     if not os.path.exists(config_path):
         raise FileNotFoundError('Config file not found')
     if not os.path.exists(rosbag_path):
+        cprint(rosbag_path, 'red', attrs=['bold'])
         raise FileNotFoundError('ROS bag file not found')
 
     # start a subprocess to run the rosbag
