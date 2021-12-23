@@ -145,7 +145,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_topic', default='/ackermann_drive_init', type=str)
     parser.add_argument('--output_topic', default='/ackermann_curvature_drive',  type=str)
     parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
-    parser.add_argument('--history_len', type=int, default=5)
+    parser.add_argument('--history_len', type=int, default=1)
     args = parser.parse_args()
 
     rospy.init_node('ikd_node', anonymous=True)
