@@ -136,11 +136,11 @@ class IKDNode(object):
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
-        print("Output Nav Command : ", v, -w)
+        print("Output Nav Command : ", v, w)
 
         # populate with v and w
         self.nav_cmd.velocity = v
-        self.nav_cmd.curvature = -w/v
+        self.nav_cmd.curvature = w/v
 
         self.nav_publisher.publish(self.nav_cmd)
 
