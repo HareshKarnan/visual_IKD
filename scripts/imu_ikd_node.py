@@ -105,7 +105,7 @@ class IKDNode(object):
             return
 
         print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
-        if msg.velocity * msg.curvature > 2.0:
+        if msg.velocity * msg.curvature < 2.0:
             cprint('Velocity * Curvature > 2.0', 'red', attrs=['bold'])
             self.nav_cmd.velocity = msg.velocity
             self.nav_cmd.curvature = msg.curvature
