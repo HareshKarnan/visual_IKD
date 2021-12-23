@@ -104,7 +104,7 @@ class IKDNode(object):
             self.nav_publisher.publish(self.nav_cmd)
             return
 
-        print("Received Nav Command : ", msg.velocity, msg.curvature)
+        print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
 
 
         data = self.data_processor.get_data()
@@ -130,11 +130,11 @@ class IKDNode(object):
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
+        print("Output Nav Command : ", v, w)
 
         # populate with v and w
         self.nav_cmd.velocity = v
         self.nav_cmd.curvature = w/v
-        print("Output Nav Command : ", v, w/v)
 
         self.nav_publisher.publish(self.nav_cmd)
 
