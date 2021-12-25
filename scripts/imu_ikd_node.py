@@ -47,7 +47,10 @@ class LiveDataProcessor(object):
 
     def callback(self, odom):
         self.n += 1
-        self.data['odom'].append(np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z]))
+        odom_data = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
+        odom_data[0] = np.sqrt(odom_data[0]**2 + odom_data[1]**2)
+        odom_data[1] = odom_data[2]
+        self.data['odom'].append(np.asarray(odom_data[:2]))
 
         # retain the history of odom
         self.data['odom'] = self.data['odom'][-self.history_len:]
