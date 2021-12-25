@@ -98,19 +98,25 @@ class IKDNode(object):
         self.nav_publisher = rospy.Publisher(self.output_topic, AckermannCurvatureDriveMsg, queue_size=1)
 
     def navCallback(self, msg):
-        print("Received Nav Command : ", msg.velocity, msg.curvature)
         if msg.velocity < 0.05:
             self.nav_cmd.velocity = 0.0
             self.nav_cmd.curvature = 0.0
             self.nav_publisher.publish(self.nav_cmd)
             return
 
+        print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
+        # if msg.velocity * msg.curvature > 1.0:
+        #     cprint('Velocity * Curvature > 2.0', 'red', attrs=['bold'])
+        #     self.nav_cmd.velocity = msg.velocity
+        #     self.nav_cmd.curvature = msg.curvature
+        #     self.nav_publisher.publish(self.nav_cmd)
+        #     return
+
+
         data = self.data_processor.get_data()
         if len(data['odom']) < self.history_len:
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
             return
-        else:
-            pass
 
         odom_history = np.asarray(data['odom']).flatten()
         desired_odom = np.array([msg.velocity, 0, msg.velocity * msg.curvature])
@@ -130,11 +136,11 @@ class IKDNode(object):
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
+        print("Output Nav Command : ", v, w)
 
         # populate with v and w
         self.nav_cmd.velocity = v
-        self.nav_cmd.curvature = w / v
-        print("Output Nav Command : ", v, w/v)
+        self.nav_cmd.curvature = w/v
 
         self.nav_publisher.publish(self.nav_cmd)
 
@@ -145,7 +151,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_topic', default='/ackermann_drive_init', type=str)
     parser.add_argument('--output_topic', default='/ackermann_curvature_drive',  type=str)
     parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
-    parser.add_argument('--history_len', type=int, default=5)
+    parser.add_argument('--history_len', type=int, default=1)
     args = parser.parse_args()
 
     rospy.init_node('ikd_node', anonymous=True)
