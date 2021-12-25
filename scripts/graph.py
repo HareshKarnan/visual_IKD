@@ -63,6 +63,7 @@ if __name__ == '__main__':
                             drop_last=not (len(dataset) % args.batch_size == 0.0))
 
     joystick_true, joystick_pred = [], []
+    odom_list = []
     for odom_history, joystick, accel, gyro, bevimage in tqdm(dataloader):
         odom_history = odom_history.to(device).float()
         accel = accel.to(device).float()
@@ -79,14 +80,26 @@ if __name__ == '__main__':
         joystick_true.append(joystick.numpy().flatten())
         joystick_pred.append(np.asarray(output[0]))
 
-    joystick_true = np.asarray(joystick_true)
-    joystick_pred = np.asarray(joystick_pred)
-    plt.figure(figsize=(30, 12))
+        odom_list.append(odom_history.squeeze(0).cpu().numpy()[:2])
+
+    odom_list = np.asarray(odom_list)
+
+    # joystick_true = np.asarray(joystick_true)
+    # joystick_pred = np.asarray(joystick_pred)
+    # plt.figure(figsize=(30, 12))
+    # plt.subplot(2, 1, 1)
+    # plt.plot(np.arange(len(joystick_true)), joystick_true[:, 0], label='true', color='blue')
+    # plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 0], label='pred', color='red')
+    # plt.subplot(2, 1, 2)
+    # plt.plot(np.arange(len(joystick_true)), joystick_true[:, 1], label='true', color='blue')
+    # plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 1], label='pred', color='red')
+    # # plt.savefig('graph.png')
+    # plt.show()
+
+    print('odom shape : ', odom_list.shape)
+
     plt.subplot(2, 1, 1)
-    plt.plot(np.arange(len(joystick_true)), joystick_true[:, 0], label='true', color='blue')
-    plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 0], label='pred', color='red')
+    plt.plot(np.arange(len(odom_list[:, 0])), odom_list[:, 0], label='x', color='blue')
     plt.subplot(2, 1, 2)
-    plt.plot(np.arange(len(joystick_true)), joystick_true[:, 1], label='true', color='blue')
-    plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 1], label='pred', color='red')
-    # plt.savefig('graph.png')
+    plt.plot(np.arange(len(odom_list[:, 1])), odom_list[:, 1], label='y', color='blue')
     plt.show()
