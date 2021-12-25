@@ -101,8 +101,8 @@ class ProcessedBagDataset(Dataset):
         odom_curr = self.data['odom'][idx][:3]
         odom_next = self.data['odom'][idx][-3:]
 
-        odom_val = np.hstack((np.sqrt(odom_curr[0]**2 + odom_curr[1]**2),
-                              odom_curr[2],
+
+        odom_val = np.hstack((odom_curr,
                               np.sqrt(odom_next[0]**2 + odom_next[1]**2),
                               odom_next[2])).flatten()
 
@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = IKDModel(input_size=3*60 + 3*200 + 2*(args.history_len+1), # accel + gyro + odom*history
+    model = IKDModel(input_size=3*60 + 3*200 + (3 + 2), # accel + gyro + odom*history
                      output_size=2,
                      hidden_size=args.hidden_size,
                      use_vision=args.use_vision).to(device)
