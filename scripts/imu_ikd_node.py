@@ -47,10 +47,7 @@ class LiveDataProcessor(object):
 
     def callback(self, odom):
         self.n += 1
-        odom_data = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
-        odom_data[0] = np.sqrt(odom_data[0]**2 + odom_data[1]**2)
-        odom_data[1] = odom_data[2]
-        self.data['odom'].append(np.asarray(odom_data[:2]))
+        self.data['odom'].append(np.asarray([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z]))
 
         # retain the history of odom
         self.data['odom'] = self.data['odom'][-self.history_len:]
@@ -85,7 +82,7 @@ class IKDNode(object):
         cprint('Using device: {}'.format(self.device), 'yellow', attrs=['bold'])
 
         print("Loading Model...")
-        self.model = SimpleIKDNet(input_size=3*60 + 3*200 + 2*(args.history_len+1),
+        self.model = SimpleIKDNet(input_size=3*60 + 3*200 + 3 + 2,
                                   output_size=2,
                                   hidden_size=32).to(device=self.device)
         if self.model_path is not None:
