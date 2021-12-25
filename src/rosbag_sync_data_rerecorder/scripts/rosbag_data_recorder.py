@@ -114,6 +114,7 @@ class ListenRecordData:
         data['accel'] = data['accel'][:len(data['odom'])]
         data['gyro'] = data['gyro'][:len(data['odom'])]
         data['joystick'] = data['joystick'][:len(data['odom'])]
+        data['vescdrive'] = data['vescdrive'][:len(data['odom'])]
 
         # # convert egocentric image view into a bird's eye view based on the IMU data
         # print('Processing bev image')
@@ -371,7 +372,10 @@ class ListenRecordData:
         for i in range(len(data['odom_msg'])-1):
             odom_now = data['odom_msg'][i]
             odom_now = np.array([odom_now.twist.twist.linear.x, odom_now.twist.twist.linear.y, odom_now.twist.twist.angular.z])
-            odom_next = data['odom_msg'][i+1]
+            if i>len(data['odom_msg'])-6:
+                odom_next = data['odom_msg'][i+1]
+            else:
+                odom_next = data['odom_msg'][i+5]
             odom_next = np.array([odom_next.twist.twist.linear.x, odom_next.twist.twist.linear.y, odom_next.twist.twist.angular.z])
             odoms.append(np.hstack((odom_now, odom_next)))
         return odoms

@@ -20,11 +20,11 @@ if __name__ == '__main__':
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = IKDModel.load_from_checkpoint('models/22-12-2021-00-02-09.ckpt', use_vision=args.use_vision)
+    model = IKDModel.load_from_checkpoint('models/25-12-2021-15-11-08.ckpt', use_vision=args.use_vision)
     model = model.to(device)
     model.eval()
 
-    data = pickle.load(open('/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train11_data/data_1.pkl', 'rb'))
+    data = pickle.load(open('/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/sample_data/data_1.pkl', 'rb'))
 
     # class ProcessedBagDataset(Dataset):
     #     def __init__(self, data, history_len):
@@ -62,6 +62,9 @@ if __name__ == '__main__':
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False,
                             drop_last=not (len(dataset) % args.batch_size == 0.0))
 
+    print('dataloader size : ', len(dataloader))
+    print('odom size : ', len(data['odom']))
+
     joystick_true, joystick_pred = [], []
     odom_list = []
     for odom_history, joystick, accel, gyro, bevimage in tqdm(dataloader):
@@ -84,22 +87,26 @@ if __name__ == '__main__':
 
     odom_list = np.asarray(odom_list)
 
-    # joystick_true = np.asarray(joystick_true)
-    # joystick_pred = np.asarray(joystick_pred)
-    # plt.figure(figsize=(30, 12))
-    # plt.subplot(2, 1, 1)
-    # plt.plot(np.arange(len(joystick_true)), joystick_true[:, 0], label='true', color='blue')
-    # plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 0], label='pred', color='red')
-    # plt.subplot(2, 1, 2)
-    # plt.plot(np.arange(len(joystick_true)), joystick_true[:, 1], label='true', color='blue')
-    # plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 1], label='pred', color='red')
-    # # plt.savefig('graph.png')
-    # plt.show()
+    joystick_true = np.asarray(joystick_true)
+    joystick_pred = np.asarray(joystick_pred)
+    data['odom'] = np.asarray(data['odom'])
 
-    print('odom shape : ', odom_list.shape)
-
+    plt.figure(figsize=(30, 12))
     plt.subplot(2, 1, 1)
-    plt.plot(np.arange(len(odom_list[:, 0])), odom_list[:, 0], label='x', color='blue')
+    plt.plot(np.arange(len(joystick_true)), joystick_true[:, 0], label='true', color='blue')
+    plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 0], label='pred', color='red')
+    plt.plot(np.arange(len(joystick_true)), data['odom'][:, 0], label='true', color='green')
     plt.subplot(2, 1, 2)
-    plt.plot(np.arange(len(odom_list[:, 1])), odom_list[:, 1], label='y', color='blue')
+    plt.plot(np.arange(len(joystick_true)), joystick_true[:, 1], label='true', color='blue')
+    plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 1], label='pred', color='red')
+    plt.plot(np.arange(len(joystick_true)), data['odom'][:, 2], label='true', color='green')
+    # plt.savefig('graph.png')
     plt.show()
+
+    # print('odom shape : ', odom_list.shape)
+    #
+    # plt.subplot(2, 1, 1)
+    # plt.plot(np.arange(len(odom_list[:, 0])), odom_list[:, 0], label='x', color='blue')
+    # plt.subplot(2, 1, 2)
+    # plt.plot(np.arange(len(odom_list[:, 1])), odom_list[:, 1], label='y', color='blue')
+    # plt.show()

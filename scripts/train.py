@@ -101,7 +101,6 @@ class ProcessedBagDataset(Dataset):
         odom_curr = self.data['odom'][idx][:3]
         odom_next = self.data['odom'][idx][-3:]
 
-
         odom_val = np.hstack((odom_curr,
                               np.sqrt(odom_next[0]**2 + odom_next[1]**2),
                               odom_next[2])).flatten()
