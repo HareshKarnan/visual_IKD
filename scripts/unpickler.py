@@ -2,7 +2,7 @@ import pytorch_lightning as pl
 import torch
 from scripts.train import IKDModel
 
-model = IKDModel.load_from_checkpoint('models/22-12-2021-00-02-09.ckpt')
+model = IKDModel.load_from_checkpoint('models/25-12-2021-10-37-01.ckpt')
 torch.save(model.ikd_model.state_dict(), 'models/torchmodel.pt')
 
 # state_dict = torch.load('models/17-11-2021-15-35-04.ckpt')["state_dict"]

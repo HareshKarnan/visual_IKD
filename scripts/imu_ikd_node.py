@@ -85,7 +85,7 @@ class IKDNode(object):
         cprint('Using device: {}'.format(self.device), 'yellow', attrs=['bold'])
 
         print("Loading Model...")
-        self.model = SimpleIKDNet(input_size=3*60 + 3*200 + 3*(args.history_len+1),
+        self.model = SimpleIKDNet(input_size=3*60 + 3*200 + 2*(args.history_len+1),
                                   output_size=2,
                                   hidden_size=32).to(device=self.device)
         if self.model_path is not None:
@@ -122,7 +122,7 @@ class IKDNode(object):
             return
 
         odom_history = np.asarray(data['odom']).flatten()
-        desired_odom = np.array([msg.velocity, 0, msg.velocity * msg.curvature])
+        desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
 
         # form the input tensors
         accel = torch.tensor(data['accel']).to(device=self.device)
