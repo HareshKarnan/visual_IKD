@@ -45,6 +45,11 @@ for pickle_file in tqdm(pickle_file_paths):
 	# plt.show()
 	# data['odom'][:, 0] = np.sqrt(data['odom'][:, 3] ** 2 + data['odom'][:, 4] ** 2)
 
-	plt.plot(data['odom'][:, 3], '-r')
-	plt.plot(data['vescdrive'][:, 0], '-b')
+	plt.figure()
+	plt.subplot(2, 1, 1)
+	plt.plot(data['odom'][:, 0], '-r')
+	plt.plot(data['joystick'][:, 0], '-b')
+	plt.subplot(2, 1, 2)
+	plt.plot(data['odom'][:, 2], '-r')
+	plt.plot(data['joystick'][:, 1], '-b')
 	plt.show()
