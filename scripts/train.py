@@ -185,8 +185,17 @@ if __name__ == '__main__':
                                           filename=datetime.now().strftime("%d-%m-%Y-%H-%M-%S"),
                                           monitor='val_loss', verbose=True)
 
+    gpu_ids = [0]
+
+    if args.num_gpus==2:
+        gpu_ids = [2, 3]
+    elif args.num_gpus==4:
+        gpu_ids = [0, 1, 2, 3]
+    elif args.num_gpus==3:
+        gpu_ids = [1, 2, 3]
+
     print("Training model...")
-    trainer = pl.Trainer(gpus=[0] if args.num_gpus==1 else [0, 1, 2, 3],
+    trainer = pl.Trainer(gpus=gpu_ids,
                          max_epochs=args.max_epochs,
                          callbacks=[early_stopping_cb, model_checkpoint_cb],
                          log_every_n_steps=10,
