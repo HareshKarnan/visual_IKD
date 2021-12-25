@@ -186,13 +186,12 @@ if __name__ == '__main__':
                                           monitor='val_loss', verbose=True)
 
     gpu_ids = [0]
-
     if args.num_gpus==2:
-        gpu_ids = [2, 3]
+        gpu_ids = [1, 2]
     elif args.num_gpus==4:
         gpu_ids = [0, 1, 2, 3]
     elif args.num_gpus==3:
-        gpu_ids = [1, 2, 3]
+        gpu_ids = [0, 1, 2]
 
     print("Training model...")
     trainer = pl.Trainer(gpus=gpu_ids,
