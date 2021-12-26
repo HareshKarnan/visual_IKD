@@ -43,10 +43,10 @@ class WaypointNavigator():
 		cprint('Initialized waypoint navigator', 'green', attrs=['bold'])
 
 	def get_target_waypoint(self):
-		if (self.current_waypoint >= len(self.waypoints)):
+		if (self.current_waypoint >= len(self.waypoints)+1):
 			if (args.loop):
 				print("Circuit Complete, restarting...")
-				self.current_waypoint = 0
+				self.current_waypoint = 1
 			else:
 				print("Completed waypoint navigation, exiting...")
 				exit(0)
