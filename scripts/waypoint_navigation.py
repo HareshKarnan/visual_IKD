@@ -34,7 +34,7 @@ class WaypointNavigator():
 
 		self.waypoints = waypoints
 
-		self.current_waypoint = 0
+		self.current_waypoint = 1
 		rospy.Subscriber("localization", Localization2DMsg, self.loc_callback)
 		self.nav_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
 		self.goal_msg = PoseStamped()
@@ -62,7 +62,7 @@ class WaypointNavigator():
 
 	def send_nav_command(self):
 		target_waypoint = self.get_target_waypoint()
-		print("Navigating to ({}, {})...".format(target_waypoint["x"], target_waypoint["y"]))
+		print("Navigating to ... \n", target_waypoint)
 
 		self.goal_msg.pose.position.x = target_waypoint["position"][0]
 		self.goal_msg.pose.position.y = target_waypoint["position"][1]
