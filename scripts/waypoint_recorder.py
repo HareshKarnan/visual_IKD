@@ -15,13 +15,8 @@ class WaypointRecorder:
 		num_wpts = len(self.waypoints.keys())
 
 		self.waypoints[num_wpts+1] = {}
-		self.waypoints[num_wpts+1]['xp'] = msg.pose.position.x
-		self.waypoints[num_wpts+1]['yp'] = msg.pose.position.y
-		self.waypoints[num_wpts+1]['zp'] = msg.pose.position.z
-		self.waypoints[num_wpts+1]['xr'] = msg.pose.orientation.x
-		self.waypoints[num_wpts+1]['yr'] = msg.pose.orientation.y
-		self.waypoints[num_wpts+1]['zr'] = msg.pose.orientation.z
-		self.waypoints[num_wpts+1]['wr'] = msg.pose.orientation.w
+		self.waypoints[num_wpts+1]['position'] = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
+		self.waypoints[num_wpts+1]['orientation'] = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
 
 		print('received waypoint : ', self.waypoints[num_wpts+1])
 
