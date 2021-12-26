@@ -24,7 +24,6 @@ with open(args.waypoints) as f:
 	waypoints = yaml.load(f)
 
 print('waypoints : ', waypoints)
-input()
 
 class WaypointNavigator():
 	WAYPOINT_THRESHOLD = 0.75
