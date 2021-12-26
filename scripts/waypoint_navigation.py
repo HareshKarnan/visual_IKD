@@ -18,17 +18,19 @@ parser.add_argument('--waypoints', type=str, required=True, help='json file cont
 
 args = parser.parse_args()
 
+# read the yaml file and load
+with open(args.waypoints) as f:
+	waypoints = yaml.load(f)
+
+print('waypoints : ', waypoints)
+input()
+
 class WaypointNavigator():
 	WAYPOINT_THRESHOLD = 0.75
 
 	def __init__(self, waypoints):
 
-		# read the yaml file and load
-		with open(args.waypoints) as f:
-			self.waypoints = yaml.load(f)
-
-		print('waypoints : ', self.waypoints)
-		input()
+		self.waypoints = waypoints
 
 		self.current_waypoint = 0
 		rospy.Subscriber("localization", Localization2DMsg, self.loc_callback)
