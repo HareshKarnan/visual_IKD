@@ -11,6 +11,7 @@ import time
 import numpy as np
 import yaml
 from geometry_msgs.msg import PoseStamped
+from amrl_msgs.msg import Localization2DMsg
 from termcolor import cprint
 
 parser = argparse.ArgumentParser()
