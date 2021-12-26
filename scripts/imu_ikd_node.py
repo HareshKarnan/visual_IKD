@@ -98,11 +98,11 @@ class IKDNode(object):
         self.nav_publisher = rospy.Publisher(self.output_topic, AckermannCurvatureDriveMsg, queue_size=1)
 
     def navCallback(self, msg):
-        if msg.velocity < 0.5:
-            self.nav_cmd.velocity = msg.velocity
-            self.nav_cmd.curvature = msg.curvature
-            self.nav_publisher.publish(self.nav_cmd)
-            return
+        # if msg.velocity < 0.5:
+        #     self.nav_cmd.velocity = msg.velocity
+        #     self.nav_cmd.curvature = msg.curvature
+        #     self.nav_publisher.publish(self.nav_cmd)
+        #     return
 
         # if msg.velocity * msg.curvature > 1.0:
         #     cprint('Velocity * Curvature > 2.0', 'red', attrs=['bold'])
