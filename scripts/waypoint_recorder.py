@@ -14,7 +14,7 @@ class WaypointRecorder:
 		cprint('Waypoint received', 'green', attrs=['bold'])
 		num_wpts = len(self.waypoints.keys())
 
-		self.waypoints[+1] = {}
+		self.waypoints[num_wpts+1] = {}
 		self.waypoints[num_wpts+1]['xp'] = msg.pose.position.x
 		self.waypoints[num_wpts+1]['yp'] = msg.pose.position.y
 		self.waypoints[num_wpts+1]['zp'] = msg.pose.position.z
