@@ -75,8 +75,8 @@ class WaypointNavigator():
 
 	@classmethod
 	def is_close(cls, target, pose):
-		target_theta = target["theta"]
-		diff = np.linalg.norm(np.array([pose.x, pose.y]) - np.array([target["x"], target["y"]]))
+		target_pos = target["position"]
+		diff = np.linalg.norm(np.array([pose.x, pose.y]) - np.array([target_pos[0], target_pos[1]]))
 		return diff < cls.WAYPOINT_THRESHOLD
 
 
