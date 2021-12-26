@@ -11,8 +11,9 @@ import time
 import numpy as np
 import yaml
 from geometry_msgs.msg import PoseStamped
-parser = argparse.ArgumentParser()
+from termcolor import cprint
 
+parser = argparse.ArgumentParser()
 parser.add_argument('--loop', action='store_true')
 parser.add_argument('--waypoints', type=str, required=True, help='json file containing an array of waypoints')
 
@@ -30,6 +31,7 @@ class WaypointNavigator():
 
 	def __init__(self, waypoints):
 
+
 		self.waypoints = waypoints
 
 		self.current_waypoint = 0
@@ -37,6 +39,8 @@ class WaypointNavigator():
 		self.nav_pub = rospy.Publisher("/move_base_simple/goal", PoseStamped, queue_size=1)
 		self.goal_msg = PoseStamped()
 		self.goal_msg.header.frame_id = ""
+
+		cprint('Initialized waypoint navigator', 'green', attrs=['bold'])
 
 	def get_target_waypoint(self):
 		if (self.current_waypoint >= len(self.waypoints)):
