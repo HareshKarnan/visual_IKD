@@ -4,6 +4,8 @@ import yaml
 import rospy
 from geometry_msgs.msg import PoseStamped
 from termcolor import cprint
+import roslib
+roslib.load_manifest('amrl_msgs')
 from amrl_msgs.msg import Localization2DMsg
 from scipy.spatial.transform import Rotation as R
 
