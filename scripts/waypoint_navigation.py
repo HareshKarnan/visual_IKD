@@ -43,7 +43,7 @@ class WaypointNavigator():
 		cprint('Initialized waypoint navigator', 'green', attrs=['bold'])
 
 	def get_target_waypoint(self):
-		if (self.current_waypoint >= len(self.waypoints)+1):
+		if (self.current_waypoint >= len(self.waypoints)):
 			if (args.loop):
 				print("Circuit Complete, restarting...")
 				# find the closest waypoint to the current location
