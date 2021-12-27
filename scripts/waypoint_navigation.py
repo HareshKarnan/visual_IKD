@@ -48,6 +48,7 @@ class WaypointNavigator():
 				print("Circuit Complete, restarting...")
 				# find the closest waypoint to the current location
 				self.current_waypoint = self.get_closest_waypoint() + 10
+				print('closest waypoint : ', self.current_waypoint)
 
 				# self.current_waypoint = 1
 			else:
@@ -59,12 +60,13 @@ class WaypointNavigator():
 	def get_closest_waypoint(self):
 		closest_waypoint = 1
 		closest_waypoint_dist = float('inf')
-		for i in range(len(self.waypoints)):
+		for i in range(int(len(self.waypoints)/2)):
 			waypoint = self.waypoints[i]
 			dist = np.linalg.norm(np.array([self.loc.pose.x, self.loc.pose.y]) - np.array([waypoint["position"][0], waypoint["position"][1]]))
 			if (dist < closest_waypoint_dist):
 				closest_waypoint = i
 				closest_waypoint_dist = dist
+
 		return closest_waypoint
 
 	def loc_callback(self, loc):
