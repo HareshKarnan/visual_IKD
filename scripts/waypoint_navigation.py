@@ -79,7 +79,7 @@ class WaypointNavigator():
 
 	def send_nav_command(self):
 		target_waypoint = self.get_target_waypoint()
-		print("Navigating to ... \n", target_waypoint)
+		print("Navigating to ... \n", self.current_waypoint, '/', len(self.waypoints))
 
 		self.goal_msg.pose.position.x = target_waypoint["position"][0]
 		self.goal_msg.pose.position.y = target_waypoint["position"][1]
