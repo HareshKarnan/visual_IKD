@@ -47,7 +47,7 @@ class WaypointNavigator():
 			if (args.loop):
 				print("Circuit Complete, restarting...")
 				# find the closest waypoint to the current location
-				self.current_waypoint = self.get_closest_waypoint() + 10
+				self.current_waypoint = self.get_closest_waypoint() + 5
 				print('closest waypoint : ', self.current_waypoint)
 
 				# self.current_waypoint = 1
@@ -74,7 +74,7 @@ class WaypointNavigator():
 		target_waypoint = self.get_target_waypoint()
 
 		if WaypointNavigator.is_close(target_waypoint, loc.pose):
-			self.current_waypoint = min(len(self.waypoints)-1, self.current_waypoint + 20)
+			self.current_waypoint = min(len(self.waypoints)-1, self.current_waypoint + 10)
 			self.send_nav_command()
 
 	def send_nav_command(self):
