@@ -57,7 +57,7 @@ class WaypointNavigator():
 		target_waypoint = self.get_target_waypoint()
 
 		if WaypointNavigator.is_close(target_waypoint, loc.pose):
-			self.current_waypoint += 1
+			self.current_waypoint += 5
 			self.send_nav_command()
 
 	def send_nav_command(self):
