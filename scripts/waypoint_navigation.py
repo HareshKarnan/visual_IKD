@@ -60,7 +60,7 @@ class WaypointNavigator():
 	def get_closest_waypoint(self):
 		closest_waypoint = 1
 		closest_waypoint_dist = float('inf')
-		for i in range(int(len(self.waypoints)/2)):
+		for i in range(1, int(len(self.waypoints)/2)):
 			waypoint = self.waypoints[i]
 			dist = np.linalg.norm(np.array([self.loc.pose.x, self.loc.pose.y]) - np.array([waypoint["position"][0], waypoint["position"][1]]))
 			if (dist < closest_waypoint_dist):
