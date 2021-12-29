@@ -82,8 +82,8 @@ class ProcessedBagDataset(Dataset):
         self.data['odom'] = np.asarray(self.data['odom'])
         self.data['joystick'] = np.asarray(self.data['joystick'])
         # self.data['odom_1sec_msg'] = np.asarray(self.data['odom_1sec_msg'])
-        self.data['accel'] = np.asarray(self.data['accel'])
-        self.data['gyro'] = np.asarray(self.data['gyro'])
+        self.data['accel_msg'] = np.asarray(self.data['accel_msg'])
+        self.data['gyro_msg'] = np.asarray(self.data['gyro_msg'])
 
         # self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
         # self.data['joystick'][:, 1] = self.data['joystick'][:, 1] - self.data['odom'][:, 2]
@@ -110,8 +110,8 @@ class ProcessedBagDataset(Dataset):
                               odom_next[2])).flatten()
 
         # odom_1sec_history = self.data['odom_1sec_msg'][idx]
-        accel = self.data['accel'][idx]
-        gyro = self.data['gyro'][idx]
+        accel = self.data['accel_msg'][idx]
+        gyro = self.data['gyro_msg'][idx]
         joystick = self.data['joystick'][idx]
         patches = self.data['patches'][idx]
         patch = patches[np.random.randint(0, len(patches))] # pick a random patch
