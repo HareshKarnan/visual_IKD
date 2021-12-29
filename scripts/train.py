@@ -36,33 +36,33 @@ class IKDModel(pl.LightningModule):
 
         self.loss = torch.nn.MSELoss()
 
-    def forward(self, odom_1sec_history, odom, bevimage=None):
+    def forward(self, accel, gyro, odom, bevimage=None):
         if self.use_vision:
-            # return self.ikd_model(non_visual_input, bevimage)
-            return self.ikd_model(odom_1sec_history, odom, bevimage)
+            # return self.ikd_model(odom_1sec_history, odom, bevimage)
+            return self.ikd_model(accel, gyro, odom, bevimage)
         else:
-            # return self.ikd_model(non_visual_input)
-            return self.ikd_model(odom_1sec_history, odom)
+            # return self.ikd_model(odom_1sec_history, odom)
+            return self.ikd_model(accel, gyro, odom)
 
     def training_step(self, batch, batch_idx):
-        odom, joystick, odom_1sec_history, bevimage = batch
+        odom, joystick, accel, gyro, bevimage = batch
         if self.use_vision:
             bevimage = bevimage.permute(0, 3, 1, 2)
-            prediction = self.forward(odom_1sec_history.float(), odom.float(), bevimage.float())
+            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage.float())
         else:
-            prediction = self.forward(odom_1sec_history.float(), odom.float())
+            prediction = self.forward(accel.float(), gyro.float(), odom.float())
 
         loss = self.loss(prediction, joystick.float())
         self.log('train_loss', loss, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        odom, joystick, odom_1sec_history, bevimage = batch
+        odom, joystick, accel, gyro, bevimage = batch
         if self.use_vision:
             bevimage = bevimage.permute(0, 3, 1, 2)
-            prediction = self.forward(odom_1sec_history.float(), odom.float(), bevimage.float())
+            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage.float())
         else:
-            prediction = self.forward(odom_1sec_history.float(), odom.float())
+            prediction = self.forward(accel.float(), gyro.float(), odom.float())
 
         loss = self.loss(prediction, joystick.float())
         self.log('val_loss', loss, prog_bar=True, logger=True)
@@ -81,7 +81,9 @@ class ProcessedBagDataset(Dataset):
 
         self.data['odom'] = np.asarray(self.data['odom'])
         self.data['joystick'] = np.asarray(self.data['joystick'])
-        self.data['odom_1sec_msg'] = np.asarray(self.data['odom_1sec_msg'])
+        # self.data['odom_1sec_msg'] = np.asarray(self.data['odom_1sec_msg'])
+        self.data['accel'] = np.asarray(self.data['accel'])
+        self.data['gyro'] = np.asarray(self.data['gyro'])
 
         # self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
         # self.data['joystick'][:, 1] = self.data['joystick'][:, 1] - self.data['odom'][:, 2]
@@ -107,7 +109,9 @@ class ProcessedBagDataset(Dataset):
                               odom_next[0],
                               odom_next[2])).flatten()
 
-        odom_1sec_history = self.data['odom_1sec_msg'][idx]
+        # odom_1sec_history = self.data['odom_1sec_msg'][idx]
+        accel = self.data['accel'][idx]
+        gyro = self.data['gyro'][idx]
         joystick = self.data['joystick'][idx]
         patches = self.data['patches'][idx]
         patch = patches[np.random.randint(0, len(patches))] # pick a random patch
@@ -118,7 +122,7 @@ class ProcessedBagDataset(Dataset):
         # cv2.imshow('disp', patch)
         # cv2.waitKey(0)
 
-        return odom_val, joystick, odom_1sec_history, patch
+        return odom_val, joystick, accel, gyro, patch
 
 class IKDDataModule(pl.LightningDataModule):
     def __init__(self, data_dir, train_dataset_names, val_dataset_names, batch_size, history_len):
@@ -169,7 +173,7 @@ if __name__ == '__main__':
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = IKDModel(input_size=3*200 + (3 + 2), # odom_1sec_history + odom_curr + odom_next
+    model = IKDModel(input_size=3*200 + 60*3 + (3 + 2), # odom_1sec_history + odom_curr + odom_next
                      output_size=2,
                      hidden_size=args.hidden_size,
                      use_vision=args.use_vision).to(device)

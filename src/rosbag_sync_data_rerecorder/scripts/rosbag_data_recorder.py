@@ -47,6 +47,10 @@ class ListenRecordData:
 
         # subscribe to odom topic to record the last 1 second of odom data
         rospy.Subscriber('/camera/odom/sample', Odometry, self.odom_callback) # 200hz
+        # subscribe to accel and gyro topic to record the last 1 second of imu data
+        rospy.Subscriber('/camera/accel/sample', Imu, self.accel_callback) # 60hz
+        rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) # 60hz
+
 
         self.msg_data = {
             'image_msg': [],
@@ -54,6 +58,8 @@ class ListenRecordData:
             'odom_msg': [],
             'joystick_msg': [],
             'odom_1sec_msg': [],
+            'accel_msg': [],
+            'gyro_msg': [],
             'vectornav': [],
             'vesc_drive_msg': [],
         }
@@ -61,6 +67,8 @@ class ListenRecordData:
         self.open_thread_lists = []
 
         self.odom_msgs = np.zeros((200, 3), dtype=np.float32)
+        self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
+        self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
 
     def callback(self, image, odom, joystick, vectornavimu, vesc_drive):
         print('Received messages :: ', self.counter, ' ___')
@@ -70,6 +78,8 @@ class ListenRecordData:
         self.msg_data['joystick_msg'].append(joystick)
         self.msg_data['vectornav'].append(vectornavimu)
         self.msg_data['odom_1sec_msg'].append(self.odom_msgs.flatten())
+        self.msg_data['accel_msg'].append(self.accel_msgs.flatten())
+        self.msg_data['gyro_msg'].append(self.gyro_msgs.flatten())
         self.msg_data['vesc_drive_msg'].append(vesc_drive)
         self.counter += 1
 
@@ -78,6 +88,16 @@ class ListenRecordData:
         self.odom_msgs = np.roll(self.odom_msgs, -1, axis=0)
         msg = msg.twist.twist
         self.odom_msgs[-1] = np.array([msg.linear.x, msg.linear.y, msg.angular.z])
+
+    def accel_callback(self, msg):
+        # add to queue self.accel_msgs
+        self.accel_msgs = np.roll(self.accel_msgs, -1, axis=0)
+        self.accel_msgs[-1] = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
+
+    def gyro_callback(self, msg):
+        # add to queue self.gyro_msgs
+        self.gyro_msgs = np.roll(self.gyro_msgs, -1, axis=0)
+        self.gyro_msgs[-1] = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
 
     def save_data(self, msg_data, batch_idx):
         data = {}
@@ -94,7 +114,11 @@ class ListenRecordData:
         # process odom_1_sec data
         print('Processing odom_1_sec data')
         data['odom_1sec_msg'] = self.msg_data['odom_1sec_msg']
+        data['accel_msg'] = self.msg_data['accel_msg']
+        data['gyro_msg'] = self.msg_data['gyro_msg']
         del msg_data['odom_1sec_msg']
+        del msg_data['accel_msg']
+        del msg_data['gyro_msg']
 
         # process odom
         print('Processing odom data')
@@ -103,6 +127,8 @@ class ListenRecordData:
         data['joystick'] = data['joystick'][:len(data['odom'])]
         data['vescdrive'] = data['vescdrive'][:len(data['odom'])]
         data['odom_1sec_msg'] = data['odom_1sec_msg'][:len(data['odom'])]
+        data['accel_msg'] = data['accel_msg'][:len(data['odom'])]
+        data['gyro_msg'] = data['gyro_msg'][:len(data['odom'])]
 
         data['patches'] = self.process_bev_image_and_patches(msg_data)
 
@@ -116,6 +142,8 @@ class ListenRecordData:
                 data['joystick'].pop(i)
                 data['odom'].pop(i)
                 data['odom_1sec_msg'].pop(i)
+                data['accel_msg'].pop(i)
+                data['gyro_msg'].pop(i)
                 data['vectornav'].pop(i)
                 data['vescdrive'].pop(i)
         assert(len(data['odom']) == len(data['patches'].keys()))
@@ -134,6 +162,8 @@ class ListenRecordData:
         assert(len(data['joystick']) == data_length)
         assert(len(data['patches']) == data_length)
         assert(len(data['odom_1sec_msg']) == data_length)
+        assert(len(data['accel_msg']) == data_length)
+        assert(len(data['gyro_msg']) == data_length)
 
         if len(data['odom']) > 0:
             # save data
