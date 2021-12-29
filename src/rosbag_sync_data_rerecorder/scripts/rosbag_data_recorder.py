@@ -45,25 +45,22 @@ class ListenRecordData:
         self.batch_idx = 0
         self.counter = 0
 
-        # subscribe to accel and gyro topics
-        rospy.Subscriber('/camera/accel/sample', Imu, self.accel_callback) # 60hz
-        rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) # 200hz
+        # subscribe to odom topic to record the last 1 second of odom data
+        rospy.Subscriber('/camera/odom/sample', Odometry, self.odom_callback) # 200hz
 
         self.msg_data = {
             'image_msg': [],
             'src_image': [],
             'odom_msg': [],
             'joystick_msg': [],
-            'accel_msg': [],
-            'gyro_msg': [],
+            'odom_1sec_msg': [],
             'vectornav': [],
             'vesc_drive_msg': [],
         }
 
         self.open_thread_lists = []
 
-        self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
-        self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
+        self.odom_msgs = np.zeros((200, 3), dtype=np.float32)
 
     def callback(self, image, odom, joystick, vectornavimu, vesc_drive):
         print('Received messages :: ', self.counter, ' ___')
@@ -72,21 +69,15 @@ class ListenRecordData:
         self.msg_data['odom_msg'].append(odom)
         self.msg_data['joystick_msg'].append(joystick)
         self.msg_data['vectornav'].append(vectornavimu)
-        self.msg_data['accel_msg'].append(self.accel_msgs.flatten())
-        self.msg_data['gyro_msg'].append(self.gyro_msgs.flatten())
+        self.msg_data['odom_1sec_msg'].append(self.odom_msgs.flatten())
         self.msg_data['vesc_drive_msg'].append(vesc_drive)
         self.counter += 1
 
-    def accel_callback(self, msg):
-        # add to queue self.accel_msgs
-        self.accel_msgs = np.roll(self.accel_msgs, -1, axis=0)
-        self.accel_msgs[-1] = np.array([msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
-
-    def gyro_callback(self, msg):
-        # add to queue self.gyro_msgs
-        self.gyro_msgs = np.roll(self.gyro_msgs, -1, axis=0)
-        self.gyro_msgs[-1] = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
-
+    def odom_callback(self, msg):
+        # add to the queue self.odom_msgs
+        self.odom_msgs = np.roll(self.odom_msgs, -1, axis=0)
+        msg = msg.twist.twist
+        self.odom_msgs[-1] = np.array([msg.linear.x, msg.linear.y, msg.angular.z])
 
     def save_data(self, msg_data, batch_idx):
         data = {}
@@ -100,28 +91,18 @@ class ListenRecordData:
         data['vescdrive'] = self.process_vesc_drive_data(msg_data)
         del msg_data['vesc_drive_msg']
 
-        # process accel, gyro data
-        print('Processing accel, gyro data')
-        # data['accel'], data['gyro'] = self.process_accel_gyro_data(msg_data)
-        data['accel'], data['gyro'] = msg_data['accel_msg'], msg_data['gyro_msg']
-        del msg_data['accel_msg']
-        del msg_data['gyro_msg']
+        # process odom_1_sec data
+        print('Processing odom_1_sec data')
+        data['odom_1sec_msg'] = self.msg_data['odom_1sec_msg']
+        del msg_data['odom_1sec_msg']
 
         # process odom
         print('Processing odom data')
         data['odom'] = self.process_odom_vel_data(msg_data)
         data['vectornav'] = msg_data['vectornav']
-        data['accel'] = data['accel'][:len(data['odom'])]
-        data['gyro'] = data['gyro'][:len(data['odom'])]
         data['joystick'] = data['joystick'][:len(data['odom'])]
         data['vescdrive'] = data['vescdrive'][:len(data['odom'])]
-
-        # # convert egocentric image view into a bird's eye view based on the IMU data
-        # print('Processing bev image')
-        # data['image'] = self.process_bev_image(msg_data)
-        #
-        # print('Processing patches')
-        # data['patches'] = self.process_patches(msg_data, data)
+        data['odom_1sec_msg'] = data['odom_1sec_msg'][:len(data['odom'])]
 
         data['patches'] = self.process_bev_image_and_patches(msg_data)
 
@@ -133,9 +114,8 @@ class ListenRecordData:
         for i in range(len(data['odom'])-1, -1, -1):
             if (i not in data['patches']):
                 data['joystick'].pop(i)
-                data['accel'].pop(i)
-                data['gyro'].pop(i)
                 data['odom'].pop(i)
+                data['odom_1sec_msg'].pop(i)
                 data['vectornav'].pop(i)
                 data['vescdrive'].pop(i)
         assert(len(data['odom']) == len(data['patches'].keys()))
@@ -152,9 +132,8 @@ class ListenRecordData:
         data_length = len(data['odom'])
         cprint('data length: '+str(data_length), 'green', attrs=['bold'])
         assert(len(data['joystick']) == data_length)
-        assert(len(data['accel']) == data_length)
-        assert(len(data['gyro']) == data_length)
         assert(len(data['patches']) == data_length)
+        assert(len(data['odom_1sec_msg']) == data_length)
 
         if len(data['odom']) > 0:
             # save data
@@ -375,7 +354,7 @@ class ListenRecordData:
             if i>len(data['odom_msg'])-6:
                 odom_next = data['odom_msg'][i+1]
             else:
-                odom_next = data['odom_msg'][i+5]
+                odom_next = data['odom_msg'][i+5] # assuming a delay of 0.2 seconds
             odom_next = np.array([odom_next.twist.twist.linear.x, odom_next.twist.twist.linear.y, odom_next.twist.twist.angular.z])
             odoms.append(np.hstack((odom_now, odom_next)))
         return odoms
@@ -463,6 +442,9 @@ class ListenRecordData:
 
     @staticmethod
     def process_accel_gyro_data(data):
+        """
+        Deprecated
+        """
         accel_data = []
         gyro_data = []
         for i in range(len(data['accel_msg'])):

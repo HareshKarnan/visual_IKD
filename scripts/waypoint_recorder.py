@@ -32,7 +32,7 @@ class WaypointRecorder:
 		num_wpts = len(self.waypoints.keys())
 		self.waypoints[num_wpts+1] = {}
 		self.waypoints[num_wpts+1]['position'] = [msg.pose.x, msg.pose.y]
-		quaternion = R.from_euler('XYZ', [0, 0, msg.pose.theta], degrees=False).as_quat()
+		quaternion = R.from_euler('XYZ', [0, 0, msg.pose.theta], degrees=False).as_quat().tolist()
 		self.waypoints[num_wpts+1]['orientation'] = [quaternion[0], quaternion[1], quaternion[2], quaternion[3]]
 		print(msg.pose)
 
