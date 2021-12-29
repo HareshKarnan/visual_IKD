@@ -130,7 +130,9 @@ class ListenRecordData:
         data['accel_msg'] = data['accel_msg'][:len(data['odom'])]
         data['gyro_msg'] = data['gyro_msg'][:len(data['odom'])]
 
-        data['patches'] = self.process_bev_image_and_patches(msg_data)
+        data['patches'], data['patches_found'] = self.process_bev_image_and_patches(msg_data)
+        data['patches'].pop(len(data['patches'].keys())-1)
+        data['patches_found'].pop(len(data['patches_found'].keys())-1)
 
         del msg_data['image_msg']
         del msg_data['odom_msg']
@@ -146,6 +148,8 @@ class ListenRecordData:
                 data['gyro_msg'].pop(i)
                 data['vectornav'].pop(i)
                 data['vescdrive'].pop(i)
+                print("removed index", i)
+
         assert(len(data['odom']) == len(data['patches'].keys()))
         patches = []
         sorted_keys = sorted(data['patches'].keys())
@@ -161,6 +165,7 @@ class ListenRecordData:
         cprint('data length: '+str(data_length), 'green', attrs=['bold'])
         assert(len(data['joystick']) == data_length)
         assert(len(data['patches']) == data_length)
+        assert(len(data['patches_found']) == data_length)
         assert(len(data['odom_1sec_msg']) == data_length)
         assert(len(data['accel_msg']) == data_length)
         assert(len(data['gyro_msg']) == data_length)
@@ -183,6 +188,7 @@ class ListenRecordData:
     def process_bev_image_and_patches(self, msg_data):
         processed_data = {'image':[]}
         msg_data['patches'] = {}
+        msg_data['patches_found'] = {}
 
         for i in tqdm(range(len(msg_data['image_msg']))):
             bevimage, _ = ListenRecordData.camera_imu_homography(msg_data['vectornav'][i], msg_data['image_msg'][i])
@@ -208,20 +214,19 @@ class ListenRecordData:
                 # stop adding more than 10 patches for a single data point
                 if found_patch and len(msg_data['patches'][i]) > 10: break
 
-            if not found_patch: print("Unable to find patch for idx: ", i)
-
-            # else:
-            #     # show the image and the patches
-            #     cv2.imshow('image', processed_data['image'][i])
-            #     for patch in msg_data['patches'][i]:
-            #         cv2.imshow('patch', patch)
-            #         cv2.waitKey(0)
+            if not found_patch:
+                print("Unable to find patch for idx: ", i)
+                msg_data['patches'][i] = [processed_data['image'][i][500:564, 613:677]]
 
             # remove the i-30th image from RAM
             if i > 30:
                 processed_data['image'][i-29] = None
 
-        return msg_data['patches']
+            # was the patch found or no ?
+            if found_patch: msg_data['patches_found'][i] = True
+            else: msg_data['patches_found'][i] = False
+
+        return msg_data['patches'], msg_data['patches_found']
 
     def process_bev_image(self, data):
         bevimages = []
