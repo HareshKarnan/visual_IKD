@@ -220,7 +220,7 @@ class ListenRecordData:
 
             # remove the i-30th image from RAM
             if i > 30:
-                processed_data['image'][i-29] = None
+                processed_data['image'][i-30] = None
 
             # was the patch found or no ?
             if found_patch: msg_data['patches_found'][i] = True
