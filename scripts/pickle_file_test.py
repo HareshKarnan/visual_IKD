@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-dataset_path = '/home/haresh/PycharmProjects/visual_IKD/data/right_data/'
+dataset_path = '/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train1_data'
 pickle_file_paths = glob.glob(dataset_path + '/*.pkl')
 
 print(pickle_file_paths)
@@ -47,12 +47,12 @@ for pickle_file in tqdm(pickle_file_paths):
 
 	plt.figure(figsize=(20, 10))
 	plt.subplot(2, 1, 1)
-	plt.plot(data['odom'][:, 3], '-r')
+	plt.plot(data['odom'][:, 0], '-r')
 	plt.plot(data['joystick'][:, 0], '-b')
 	plt.subplot(2, 1, 2)
-	plt.plot(data['odom'][:, 5], '-r')
+	plt.plot(data['odom'][:, 2], '-r')
 	plt.plot(data['joystick'][:, 1], '-b')
-	# plt.plot(data['vescdrive'][1000:2000, 1], '-g')
+	plt.plot(data['vescdrive'][:, 1], '-g')
 	plt.show()
 
 	for i in range(len(data['patches'])):

@@ -94,7 +94,6 @@ class LiveDataProcessor(object):
             cprint('Could not find patch in the past 30 frames', 'red', attrs=['bold'])
             patch = bevimage[500:564, 613:677]
 
-        assert patch is not None
         self.data['patch'] = patch
 
     def get_data(self):
@@ -194,42 +193,6 @@ class LiveDataProcessor(object):
         ]
         vis_img = prev_image.copy()
 
-        # draw the patch rectangle
-        cv2.line(
-            vis_img,
-            (patch_corners_image_frame[0][0], patch_corners_image_frame[0][1]),
-            (patch_corners_image_frame[1][0], patch_corners_image_frame[1][1]),
-            (0, 255, 0),
-            2
-        )
-        cv2.line(
-            vis_img,
-            (patch_corners_image_frame[1][0], patch_corners_image_frame[1][1]),
-            (patch_corners_image_frame[2][0], patch_corners_image_frame[2][1]),
-            (0, 255, 0),
-            2
-        )
-        cv2.line(
-            vis_img,
-            (patch_corners_image_frame[2][0], patch_corners_image_frame[2][1]),
-            (patch_corners_image_frame[3][0], patch_corners_image_frame[3][1]),
-            (0, 255, 0),
-            2
-        )
-        cv2.line(
-            vis_img,
-            (patch_corners_image_frame[3][0], patch_corners_image_frame[3][1]),
-            (patch_corners_image_frame[0][0], patch_corners_image_frame[0][1]),
-            (0, 255, 0),
-            2
-        )
-        # draw movement vector
-        mov_start = curr_pos_np
-        mov_end = curr_pos_np + (projected_loc_np - curr_pos_np) * 5
-
-        head_start = curr_pos_np
-        head_end = curr_pos_np + curr_z_rotation @ np.array([0.25, 0, 0])
-
         projected_loc_prev_frame = inv_pos_transform @ projected_loc_np
         scaled_projected_loc = (projected_loc_prev_frame * 200).astype(np.int)
         projected_loc_image_frame = CENTER + np.array((-scaled_projected_loc[1], -scaled_projected_loc[0]))
@@ -279,44 +242,38 @@ class IKDNode(object):
         self.nav_publisher = rospy.Publisher(self.output_topic, AckermannCurvatureDriveMsg, queue_size=1)
 
     def navCallback(self, msg):
-        print("Received Nav Command : ", msg.velocity, msg.curvature)
-        if msg.velocity < 0.05:
-            self.nav_cmd.velocity = 0.0
-            self.nav_cmd.curvature = 0.0
-            self.nav_publisher.publish(self.nav_cmd)
-            return
 
         data = self.data_processor.get_data()
-        if len(data['odom']) < self.history_len:
+        if data.data_ready:
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
             return
-        else:
-            pass
 
         odom_history = np.asarray(data['odom']).flatten()
-        desired_odom = np.array([msg.velocity, 0, msg.velocity * msg.curvature])
+        desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
 
         # form the input tensors
-        accel = torch.tensor(data['accel']).to(device=self.device)
-        gyro = torch.tensor(data['gyro']).to(device=self.device)
+        accel = torch.tensor(data['accel']).to(device=self.device).unsqueeze(0)
+        gyro = torch.tensor(data['gyro']).to(device=self.device).unsqueeze(0)
         odom_input = np.concatenate((odom_history, desired_odom))
-        odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
-
-        # non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
+        odom_input = torch.tensor(odom_input.flatten()).to(device=self.device).unsqueeze(0)
+        patch = torch.tensor(data['patch']).to(device=self.device).unsqueeze(0)
+        patch = patch.permute(0, 3, 1, 2)
 
         with torch.no_grad():
             output = self.model(accel.unsqueeze(0).float(),
                                 gyro.unsqueeze(0).float(),
-                                odom_input.unsqueeze(0).float())
+                                odom_input.unsqueeze(0).float(),
+                                patch.float())
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
 
+        print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
+        print("Output Nav Command : ", v, w)
+
         # populate with v and w
         self.nav_cmd.velocity = v
         self.nav_cmd.curvature = w / v
-        print("Output Nav Command : ", v, w/v)
-
         self.nav_publisher.publish(self.nav_cmd)
 
 
