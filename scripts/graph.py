@@ -20,11 +20,11 @@ if __name__ == '__main__':
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = IKDModel.load_from_checkpoint('models/25-12-2021-15-11-08.ckpt', use_vision=args.use_vision)
+    model = IKDModel.load_from_checkpoint('models/30-12-2021-13-29-11.ckpt', use_vision=args.use_vision)
     model = model.to(device)
     model.eval()
 
-    data = pickle.load(open('/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/sample_data/data_1.pkl', 'rb'))
+    data = pickle.load(open('/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train10_data/data_1.pkl', 'rb'))
 
     # class ProcessedBagDataset(Dataset):
     #     def __init__(self, data, history_len):
@@ -95,11 +95,15 @@ if __name__ == '__main__':
     plt.subplot(2, 1, 1)
     plt.plot(np.arange(len(joystick_true)), joystick_true[:, 0], label='true', color='blue')
     plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 0], label='pred', color='red')
-    plt.plot(np.arange(len(joystick_true)), data['odom'][:, 0], label='true', color='green')
+    plt.plot(np.arange(len(joystick_true)), data['odom'][:, 3], label='true', color='green')
     plt.subplot(2, 1, 2)
     plt.plot(np.arange(len(joystick_true)), joystick_true[:, 1], label='true', color='blue')
     plt.plot(np.arange(len(joystick_true)), joystick_pred[:, 1], label='pred', color='red')
-    plt.plot(np.arange(len(joystick_true)), data['odom'][:, 2], label='true', color='green')
+    # plt.plot(np.arange(len(joystick_true)), data['odom'][:, 5], label='true', color='green')
+    # tmp = np.sqrt(data['odom'][:, 3] ** 2 + data['odom'][:, 4] ** 2)*np.sign(data['odom'][:, 4])
+    plt.plot(np.arange(len(joystick_true)), data['odom'][:, 5], label='true', color='green')
+    # plt.subplot(3, 1, 3)
+    # plt.plot(np.arange(len(joystick_true)), data['odom'][:, 4], label='true', color='black')
     # plt.savefig('graph.png')
     plt.show()
 

@@ -10,10 +10,6 @@ def get_args():
 	parser.add_argument('--use_vision', action='store_true', default=False)
 	parser.add_argument('--data_dir', type=str,
 						default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/')
-	parser.add_argument('--train_dataset_names', type=str, nargs='+', default=['train1_data',
-																			 'train2_data',
-																			 'train3_data',
-																			 'train4_data',
-																			 'train5_data'])
-	parser.add_argument('--val_dataset_names', type=str, nargs='+', default=['train6_data', 'train7_data', 'train8_data'])
+	parser.add_argument('--train_dataset_names', type=str, nargs='+', default=['train1_data'])
+	parser.add_argument('--val_dataset_names', type=str, nargs='+', default=['train2_data'])
 	return parser.parse_args()
