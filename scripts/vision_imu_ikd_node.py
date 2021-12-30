@@ -255,7 +255,7 @@ class IKDNode(object):
     def navCallback(self, msg):
 
         data = self.data_processor.get_data()
-        if self.data_processor.data_ready:
+        if not self.data_processor.data_ready:
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
             return
 
