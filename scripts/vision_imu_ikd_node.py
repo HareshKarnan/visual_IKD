@@ -134,7 +134,7 @@ class LiveDataProcessor(object):
         n = np.array([0, 0, 1]).reshape((3, 1))
         n1 = R1 @ n
 
-        H12 = ListenRecordData.homography_camera_displacement(R1, R2, t1, t2, n1)
+        H12 = LiveDataProcessor.homography_camera_displacement(R1, R2, t1, t2, n1)
         homography_matrix = C_i @ H12 @ np.linalg.inv(C_i)
         homography_matrix /= homography_matrix[2, 2]
 
@@ -146,6 +146,17 @@ class LiveDataProcessor(object):
         output = cv2.flip(output, 1)
 
         return output, img
+
+    @staticmethod
+    def homography_camera_displacement(R1, R2, t1, t2, n1):
+        R12 = R2 @ R1.T
+        t12 = R2 @ (- R1.T @ t1) + t2
+        # d is distance from plane to t1.
+        d = np.linalg.norm(n1.dot(t1.T))
+
+        H12 = R12 - ((t12 @ n1.T) / d)
+        H12 /= H12[2, 2]
+        return H12
 
     @staticmethod
     def get_patch_from_odom_delta(curr_pos, prev_pos, curr_vel, prev_vel, prev_image, curr_image):
