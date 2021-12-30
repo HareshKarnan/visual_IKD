@@ -271,9 +271,9 @@ class IKDNode(object):
         patch = patch.permute(0, 3, 1, 2)
 
         with torch.no_grad():
-            output = self.model(accel.unsqueeze(0).float(),
-                                gyro.unsqueeze(0).float(),
-                                odom_input.unsqueeze(0).float(),
+            output = self.model(accel.float(),
+                                gyro.float(),
+                                odom_input.float(),
                                 patch.float())
 
         # print("desired : ", desired_odom)
