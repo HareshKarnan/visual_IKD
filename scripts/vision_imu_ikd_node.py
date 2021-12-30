@@ -12,7 +12,7 @@ from termcolor import cprint
 import yaml
 from scipy.spatial.transform import Rotation as R
 
-from scripts.model import SimpleIKDNet
+from scripts.model import VisualIKDNet
 
 import roslib
 roslib.load_manifest('amrl_msgs')
@@ -237,7 +237,7 @@ class IKDNode(object):
         cprint('Using device: {}'.format(self.device), 'yellow', attrs=['bold'])
 
         print("Loading Model...")
-        self.model = SimpleIKDNet(input_size=3*60 + 3*200 + 3*(args.history_len+1),
+        self.model = VisualIKDNet(input_size=3*60 + 3*200 + 3*(args.history_len+1),
                                   output_size=2,
                                   hidden_size=32).to(device=self.device)
         if self.model_path is not None:
