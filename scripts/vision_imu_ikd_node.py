@@ -40,7 +40,7 @@ class LiveDataProcessor(object):
 
         # subscribe to accel and gyro topics
         rospy.Subscriber('/camera/accel/sample', Imu, self.accel_callback) #60 hz
-        rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) #60 hz
+        rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) #200 hz
 
         ts = message_filters.ApproximateTimeSynchronizer([odom, image, vectornavimu], 10, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
@@ -51,6 +51,7 @@ class LiveDataProcessor(object):
         self.data = {'accel': None, 'gyro': None, 'odom': None, 'patch': None}
         self.history_storage = {'bevimage': [], 'odom_msg': []}
         self.n = 0
+        self.data_ready = False
 
     def callback(self, odom, image, vectornavimu):
         self.n += 1
@@ -64,16 +65,19 @@ class LiveDataProcessor(object):
         bevimage, _ = self.camera_imu_homography(vectornavimu, image)
 
         # add this to the trailing history
-        self.history_storage['bevimage'] = self.history_storage['bevimage'][1:] + [bevimage]
-        self.history_storage['odom_msg'] = self.history_storage['odom_msg'][1:] + [odom]
+        self.history_storage['bevimage'] = self.history_storage['bevimage'][-29:] + [bevimage]
+        self.history_storage['odom_msg'] = self.history_storage['odom_msg'][-29:] + [odom]
 
         # check if 30 frames have been collected
         if len(self.history_storage['bevimage']) < 30:
             cprint('Not enough frames. Waiting for more frames to accumulate')
             return
 
+        # if code reaches here, then 30 frames have been collected and we are ready to serve data for the model
+        self.data_ready = True
+
         # search for the patch in the past 30 frames
-        found_patch = False
+        found_patch, patch = False, None
         for j in range(len(self.history_storage['bevimage'])-2, -1, -1):
             prev_image = self.history_storage['bevimage'][j]
             prev_odom = self.history_storage['odom_msg'][j]
@@ -82,24 +86,16 @@ class LiveDataProcessor(object):
                 prev_odom.twist.twist, prev_image, bevimage)
             if patch is not None:
                 # patch has been found. Stop searching
+                cprint('Found patch in the past 30 frames', 'green', attrs=['bold'])
                 found_patch = True
                 break
 
-        if found_patch:
-            cprint('Found patch in the past 30 frames', 'green', attrs=['bold'])
-            # make a call to the visual IKD model
-            patch = cv2.resize(patch, (PATCH_SIZE, PATCH_SIZE), interpolation=cv2.INTER_AREA).astype(np.float32)
-            patch /= 255.0
-            self.data['patch'] = patch
-        else:
-            cprint('No patch found in the past 30 frames', 'red')
-            self.data['patch'] = None
-            # TODO: if patch not found, use the patch infront of the robot!
+        if not found_patch:
+            cprint('Could not find patch in the past 30 frames', 'red', attrs=['bold'])
+            patch = bevimage[500:564, 613:677]
 
-
-
-
-
+        assert patch is not None
+        self.data['patch'] = patch
 
     def get_data(self):
         return self.data
@@ -234,9 +230,6 @@ class LiveDataProcessor(object):
         head_start = curr_pos_np
         head_end = curr_pos_np + curr_z_rotation @ np.array([0.25, 0, 0])
 
-        LiveDataProcessor.draw_arrow(mov_start, mov_end, (255, 0, 0), inv_pos_transform, CENTER, vis_img)
-        LiveDataProcessor.draw_arrow(head_start, head_end, (0, 0, 255), inv_pos_transform, CENTER, vis_img)
-
         projected_loc_prev_frame = inv_pos_transform @ projected_loc_np
         scaled_projected_loc = (projected_loc_prev_frame * 200).astype(np.int)
         projected_loc_image_frame = CENTER + np.array((-scaled_projected_loc[1], -scaled_projected_loc[0]))
@@ -257,23 +250,6 @@ class LiveDataProcessor(object):
             return None, 1.0, None, None
 
         return patch, (np.sum(zero_count) / (64. * 64.)), curr_image, vis_img
-
-    @staticmethod
-    def draw_arrow(arrow_start, arrow_end, color, inv_pos_transform, CENTER, vis_img):
-        arrow_start_prev_frame = inv_pos_transform @ arrow_start
-        arrow_end_prev_frame = inv_pos_transform @ arrow_end
-        scaled_arrow_start = (arrow_start_prev_frame * 200).astype(np.int)
-        scaled_arrow_end = (arrow_end_prev_frame * 200).astype(np.int)
-        arrow_start_image_frame = CENTER + np.array((-scaled_arrow_start[1], -scaled_arrow_start[0]))
-        arrow_end_image_frame = CENTER + np.array((-scaled_arrow_end[1], -scaled_arrow_end[0]))
-
-        cv2.arrowedLine(
-            vis_img,
-            (arrow_start_image_frame[0], arrow_start_image_frame[1]),
-            (arrow_end_image_frame[0], arrow_end_image_frame[1]),
-            color,
-            3
-        )
 
 class IKDNode(object):
     def __init__(self, data_processor, model_path, history_len, input_topic, output_topic):

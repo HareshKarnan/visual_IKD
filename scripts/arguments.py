@@ -14,9 +14,6 @@ def get_args():
 																			 'train2_data',
 																			 'train3_data',
 																			 'train4_data',
-																			 'train5_data',
-																			 'train6_data'])
-	parser.add_argument('--val_dataset_names', type=str, nargs='+', default=['train7_data', 'train8_data', 'train9_data'])
-	# parser.add_argument('--train_dataset_names', type=str, nargs='+', default=['train1_data', 'train2_data', 'train3_data'])
-	# parser.add_argument('--val_dataset_names', type=str, nargs='+', default=['train4_data'])
+																			 'train5_data'])
+	parser.add_argument('--val_dataset_names', type=str, nargs='+', default=['train6_data', 'train7_data', 'train8_data'])
 	return parser.parse_args()

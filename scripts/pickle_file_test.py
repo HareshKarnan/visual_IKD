@@ -54,6 +54,7 @@ for pickle_file in tqdm(pickle_file_paths):
 	plt.plot(data['joystick'][:, 1], '-b')
 	plt.show()
 
-	cv2.imshow('patch 1', data['patches'][0][0])
-	print('patch found : ', data['patches_found'][0])
-	cv2.waitKey(0)
+	for i in range(len(data['patches'])):
+		cv2.imshow('patch 1', data['patches'][i][-1])
+		print('patch found : ', data['patches_found'][i])
+		cv2.waitKey(0)
