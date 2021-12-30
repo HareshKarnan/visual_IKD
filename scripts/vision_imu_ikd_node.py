@@ -237,7 +237,7 @@ class IKDNode(object):
         cprint('Using device: {}'.format(self.device), 'yellow', attrs=['bold'])
 
         print("Loading Model...")
-        self.model = VisualIKDNet(input_size=3*60 + 3*200 + 3*(args.history_len+1),
+        self.model = VisualIKDNet(input_size=3*60 + 3*200 + 3 + 2,
                                   output_size=2,
                                   hidden_size=32).to(device=self.device)
         if self.model_path is not None:
@@ -294,7 +294,7 @@ if __name__ == '__main__':
     parser.add_argument('--input_topic', default='/ackermann_drive_init', type=str)
     parser.add_argument('--output_topic', default='/ackermann_curvature_drive',  type=str)
     parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")
-    parser.add_argument('--history_len', type=int, default=5)
+    parser.add_argument('--history_len', type=int, default=1)
     args = parser.parse_args()
 
     rospy.init_node('ikd_node', anonymous=True)
