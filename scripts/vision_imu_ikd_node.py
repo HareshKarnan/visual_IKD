@@ -96,8 +96,8 @@ class LiveDataProcessor(object):
         patch = bevimage[500:564, 613:677]
         patch = patch.astype(np.float32)
         patch = patch / 255.0
+        self.data['patch'] = torch.tensor(patch).permute(0, 3, 1, 2).to(self.device)
 
-        self.data['patch'] = torch.tensor(patch).to(self.device)
 
     def get_data(self):
         return self.data
@@ -263,9 +263,7 @@ class IKDNode(object):
 
         odom_input = np.concatenate((odom_history, desired_odom))
         odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
-
-        # patch = torch.tensor(data['patch']).unsqueeze(0).to(device=self.device)
-        # patch = patch.permute(0, 3, 1, 2)
+        patch = data['patch']
 
         # with torch.no_grad():
         #     output = self.model(accel.unsqueeze(0).float(),
