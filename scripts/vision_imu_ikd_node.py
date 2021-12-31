@@ -19,6 +19,8 @@ roslib.load_manifest('amrl_msgs')
 from amrl_msgs.msg import AckermannCurvatureDriveMsg
 import time
 
+torch.backends.cudnn.benchmark = True
+
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.2 * PATCH_SIZE * PATCH_SIZE
 ACTUATION_LATENCY = 0.1
