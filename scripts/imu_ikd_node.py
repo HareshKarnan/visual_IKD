@@ -13,7 +13,7 @@ import yaml
 from scipy.spatial.transform import Rotation as R
 
 from scripts.model import SimpleIKDNet
-
+import time
 import roslib
 roslib.load_manifest('amrl_msgs')
 from amrl_msgs.msg import AckermannCurvatureDriveMsg
@@ -127,7 +127,7 @@ class IKDNode(object):
         odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
 
         # non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
-
+        start_time = time.time()
         with torch.no_grad():
             output = self.model(accel.unsqueeze(0).float(),
                                 gyro.unsqueeze(0).float(),
@@ -135,6 +135,7 @@ class IKDNode(object):
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
+        print('time taken in seconds :: ', time.time() - start_time)
 
         print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
         print("Output Nav Command : ", v, w)
