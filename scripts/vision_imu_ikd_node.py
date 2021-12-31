@@ -77,22 +77,22 @@ class LiveDataProcessor(object):
         self.data_ready = True
 
         # search for the patch in the past 30 frames
-        found_patch, patch = False, None
-        for j in range(5, -1, -1):
-            prev_image = self.history_storage['bevimage'][j]
-            prev_odom = self.history_storage['odom_msg'][j]
-            patch, patch_black_pct, curr_img, vis_img = self.get_patch_from_odom_delta(
-                odom.pose.pose, prev_odom.pose.pose, odom.twist.twist,
-                prev_odom.twist.twist, prev_image, bevimage)
-            if patch is not None:
-                # patch has been found. Stop searching
-                cprint('Found patch in the past 30 frames', 'green', attrs=['bold'])
-                found_patch = True
-                break
-
-        if not found_patch:
-            cprint('Could not find patch in the past 30 frames', 'red', attrs=['bold'])
-            patch = bevimage[500:564, 613:677]
+        # found_patch, patch = False, None
+        # for j in range(5, -1, -1):
+        #     prev_image = self.history_storage['bevimage'][j]
+        #     prev_odom = self.history_storage['odom_msg'][j]
+        #     patch, patch_black_pct, curr_img, vis_img = self.get_patch_from_odom_delta(
+        #         odom.pose.pose, prev_odom.pose.pose, odom.twist.twist,
+        #         prev_odom.twist.twist, prev_image, bevimage)
+        #     if patch is not None:
+        #         # patch has been found. Stop searching
+        #         cprint('Found patch in the past 30 frames', 'green', attrs=['bold'])
+        #         found_patch = True
+        #         break
+        #
+        # if not found_patch:
+        #     cprint('Could not find patch in the past 30 frames', 'red', attrs=['bold'])
+        patch = bevimage[500:564, 613:677]
 
         patch = cv2.resize(patch, (PATCH_SIZE, PATCH_SIZE))
         patch = patch.astype(np.float32)
