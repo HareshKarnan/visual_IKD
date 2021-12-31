@@ -19,10 +19,10 @@ class VisualIKDNet(nn.Module):
         #     nn.Linear(3*3*12, 16)
         # )
 
-        self.visual_encoder = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(64*64*3, 16)
-        )
+        # self.visual_encoder = nn.Sequential(
+        #     nn.Flatten(),
+        #     nn.Linear(64*64*3, 16)
+        # )
 
         # self.visual_encoder = ResNet8(output_emb_size=16)
 
