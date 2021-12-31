@@ -20,10 +20,8 @@ class VisualIKDNet(nn.Module):
         # )
 
         self.visual_encoder = nn.Sequential(
-            nn.Conv2d(3, 3, kernel_size=5, stride=2, bias=False), nn.ReLU(), # 30 x 30
-            nn.MaxPool2d(kernel_size=5, stride=3), # 9 x 9
             nn.Flatten(),
-            nn.Linear(3*9*9, 16)
+            nn.Linear(64*64*3, 16)
         )
 
         # self.visual_encoder = ResNet8(output_emb_size=16)
