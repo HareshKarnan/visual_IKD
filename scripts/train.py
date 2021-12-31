@@ -13,6 +13,8 @@ from datetime import datetime
 import cv2
 import torch
 
+print('cudnn :: ', torch.backends.cudnn.benchmark)
+
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size,
                  hidden_size=64, use_vision=False):
