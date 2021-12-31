@@ -17,6 +17,7 @@ from scripts.model import VisualIKDNet
 import roslib
 roslib.load_manifest('amrl_msgs')
 from amrl_msgs.msg import AckermannCurvatureDriveMsg
+import time
 
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.2 * PATCH_SIZE * PATCH_SIZE
@@ -249,6 +250,7 @@ class IKDNode(object):
         self.nav_publisher = rospy.Publisher(self.output_topic, AckermannCurvatureDriveMsg, queue_size=1)
 
     def navCallback(self, msg):
+        time_start = time.time()
         data = self.data_processor.get_data()
         if not self.data_processor.data_ready:
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
@@ -278,6 +280,8 @@ class IKDNode(object):
         self.nav_cmd.velocity = v
         self.nav_cmd.curvature = w / v
         self.nav_publisher.publish(self.nav_cmd)
+        # time end
+        print("Time taken in seconds : ", time.time() - time_start)
 
 
 if __name__ == '__main__':
