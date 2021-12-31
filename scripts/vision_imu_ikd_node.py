@@ -261,11 +261,11 @@ class IKDNode(object):
         odom_input = torch.tensor(odom_input.flatten()).to(device=self.device).unsqueeze(0).float()
 
 
-        with torch.no_grad():
-            output = self.model(accel,
-                                gyro,
-                                odom_input,
-                                patch)
+        # with torch.no_grad():
+        #     output = self.model(accel,
+        #                         gyro,
+        #                         odom_input,
+        #                         patch)
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).cpu().numpy()
