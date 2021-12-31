@@ -12,8 +12,7 @@ from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
 import cv2
 import torch
-
-print('cudnn :: ', torch.backends.cudnn.benchmark)
+torch.backends.cudnn.benchmark = True
 
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size,
