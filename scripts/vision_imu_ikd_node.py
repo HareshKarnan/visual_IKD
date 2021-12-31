@@ -267,14 +267,15 @@ class IKDNode(object):
         patch = torch.tensor(data['patch']).unsqueeze(0).to(device=self.device)
         patch = patch.permute(0, 3, 1, 2)
 
-        with torch.no_grad():
-            output = self.model(accel.float(),
-                                gyro.float(),
-                                odom_input.float(),
-                                patch.float())
-
-        # print("desired : ", desired_odom)
-        v, w = output.squeeze(0).detach().cpu().numpy()
+        # with torch.no_grad():
+        #     output = self.model(accel.float(),
+        #                         gyro.float(),
+        #                         odom_input.float(),
+        #                         patch.float())
+        #
+        # # print("desired : ", desired_odom)
+        # v, w = output.squeeze(0).detach().cpu().numpy()
+        v, w = 0.0, 0.0
 
         print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
         print("Output Nav Command : ", v, w)
