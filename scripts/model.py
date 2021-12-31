@@ -33,15 +33,17 @@ class VisualIKDNet(nn.Module):
         )
 
         self.ikdmodel = nn.Sequential(
-            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16 + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
         )
 
     def forward(self, accel, gyro, odom, image):
-        visual_embedding = self.visual_encoder(image)
+        # visual_embedding = self.visual_encoder(image)
         imu_embedding = self.imu_net(torch.cat((accel, gyro), dim=1))
-        return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
+        # return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
+        return self.ikdmodel(torch.cat((odom, imu_embedding), dim=1))
+
 
 class SimpleIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
