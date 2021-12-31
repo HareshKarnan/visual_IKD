@@ -59,8 +59,8 @@ class LiveDataProcessor(object):
     def callback(self, odom, image, vectornavimu):
         # populate the data dictionary
         self.data['odom'] = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
-        self.data['accel'] = torch.tensor(self.accel_msgs.flatten()).to(self.device)
-        self.data['gyro'] = torch.tensor(self.gyro_msgs.flatten()).to(self.device)
+        self.data['accel'] = torch.tensor(self.accel_msgs.flatten()).to(self.device).unsqueeze(0).float()
+        self.data['gyro'] = torch.tensor(self.gyro_msgs.flatten()).to(self.device).unsqueeze(0).float()
 
         # get the bird's eye view image
         bevimage = self.camera_imu_homography(vectornavimu, image)
@@ -96,7 +96,7 @@ class LiveDataProcessor(object):
         patch = bevimage[500:564, 613:677]
         patch = patch.astype(np.float32)
         patch = patch / 255.0
-        self.data['patch'] = torch.tensor(patch).unsqueeze(0).to(self.device)
+        self.data['patch'] = torch.tensor(patch).unsqueeze(0).to(self.device).float()
         self.data['patch'] = self.data['patch'].permute(0, 3, 1, 2)
 
     def get_data(self):
@@ -253,20 +253,19 @@ class IKDNode(object):
         if not self.data_processor.data_ready:
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
             return
+        accel, gyro, patch = data['accel'], data['gyro'], data['patch']
 
         odom_history = np.asarray(data['odom']).flatten()
         desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
-
-        # form the input tensors
         odom_input = np.concatenate((odom_history, desired_odom))
         odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
-        accel, gyro, patch = data['accel'], data['gyro'], data['patch']
+
 
         with torch.no_grad():
-            output = self.model(accel.unsqueeze(0).float(),
-                                gyro.unsqueeze(0).float(),
+            output = self.model(accel,
+                                gyro,
                                 odom_input.unsqueeze(0).float(),
-                                patch.float())
+                                patch)
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
