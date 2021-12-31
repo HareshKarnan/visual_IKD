@@ -73,7 +73,7 @@ class LiveDataProcessor(object):
         self.history_storage['odom_msg'] = self.history_storage['odom_msg'][-4:] + [odom]
 
         # check if 5 frames have been collected
-        if len(self.history_storage['bevimage']) < 5:
+        if len(self.history_storage['odom_msg']) < 5:
             cprint('Not enough frames. Waiting for more frames to accumulate')
             return
 
@@ -96,11 +96,12 @@ class LiveDataProcessor(object):
         #
         # if not found_patch:
         #     cprint('Could not find patch in the past 5 frames', 'red', attrs=['bold'])
-        patch = bevimage[500:564, 613:677]
-        patch = patch.astype(np.float32)
-        patch = patch / 255.0
-        patch = torch.tensor(patch).unsqueeze(0).to(self.device).float()
-        self.data['patch'] = patch.permute(0, 3, 1, 2)
+
+        # patch = bevimage[500:564, 613:677]
+        # patch = patch.astype(np.float32)
+        # patch = patch / 255.0
+        # patch = torch.tensor(patch).unsqueeze(0).to(self.device).float()
+        # self.data['patch'] = patch.permute(0, 3, 1, 2)
 
     def get_data(self):
         return self.data
