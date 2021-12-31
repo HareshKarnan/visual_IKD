@@ -12,12 +12,12 @@ class VisualIKDNet(nn.Module):
         super(VisualIKDNet, self).__init__()
         self.visual_encoder = nn.Sequential(
             # input 64x64x3
-            nn.Conv2d(3, 32, kernel_size=5, stride=2), nn.ReLU(), # 30 x 30
+            nn.Conv2d(3, 6, kernel_size=5, stride=2), nn.ReLU(), # 30 x 30
             nn.MaxPool2d(kernel_size=2, stride=2), # 15 x 15
-            nn.Conv2d(32, 64, kernel_size=3, stride=2), nn.ReLU(), # 7 x 7
+            nn.Conv2d(6, 12, kernel_size=3, stride=2), nn.ReLU(), # 7 x 7
             nn.MaxPool2d(kernel_size=2, stride=2), # 3 x 3
             nn.Flatten(),
-            nn.Linear(3*3*64, 16)
+            nn.Linear(3*3*12, 16)
         )
 
         # self.visual_encoder = ResNet8(output_emb_size=16)
