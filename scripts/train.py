@@ -1,3 +1,5 @@
+import torch
+torch.backends.cudnn.benchmark = True
 import os
 import sys
 from model import VisualIKDNet, SimpleIKDNet
@@ -11,8 +13,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
 import cv2
-import torch
-torch.backends.cudnn.benchmark = True
+
 
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size,
