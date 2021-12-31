@@ -96,8 +96,8 @@ class LiveDataProcessor(object):
         patch = bevimage[500:564, 613:677]
         patch = patch.astype(np.float32)
         patch = patch / 255.0
-        self.data['patch'] = torch.tensor(patch).unsqueeze(0).to(self.device).float()
-        self.data['patch'] = self.data['patch'].permute(0, 3, 1, 2)
+        patch = torch.tensor(patch).unsqueeze(0).to(self.device).float()
+        self.data['patch'] = patch.permute(0, 3, 1, 2)
 
     def get_data(self):
         return self.data
