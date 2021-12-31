@@ -54,12 +54,13 @@ class LiveDataProcessor(object):
         self.data = {'accel': None, 'gyro': None, 'odom': None, 'patch': None}
         self.history_storage = {'bevimage': [], 'odom_msg': []}
         self.data_ready = False
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     def callback(self, odom, image, vectornavimu):
         # populate the data dictionary
         self.data['odom'] = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
-        self.data['accel'] = self.accel_msgs.flatten()
-        self.data['gyro'] = self.gyro_msgs.flatten()
+        self.data['accel'] = torch.tensor(self.accel_msgs.flatten()).to(self.device)
+        self.data['gyro'] = torch.tensor(self.gyro_msgs.flatten()).to(self.device)
 
         # get the bird's eye view image
         bevimage = self.camera_imu_homography(vectornavimu, image)
@@ -93,12 +94,10 @@ class LiveDataProcessor(object):
         # if not found_patch:
         #     cprint('Could not find patch in the past 5 frames', 'red', attrs=['bold'])
         patch = bevimage[500:564, 613:677]
-
-        patch = cv2.resize(patch, (PATCH_SIZE, PATCH_SIZE))
         patch = patch.astype(np.float32)
         patch = patch / 255.0
 
-        self.data['patch'] = patch
+        self.data['patch'] = torch.tensor(patch).to(self.device)
 
     def get_data(self):
         return self.data
@@ -259,10 +258,12 @@ class IKDNode(object):
         desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
 
         # form the input tensors
-        accel = torch.tensor(data['accel']).to(device=self.device)
-        gyro = torch.tensor(data['gyro']).to(device=self.device)
+        # accel = torch.tensor(data['accel']).to(device=self.device)
+        # gyro = torch.tensor(data['gyro']).to(device=self.device)
+
         odom_input = np.concatenate((odom_history, desired_odom))
         odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
+
         # patch = torch.tensor(data['patch']).unsqueeze(0).to(device=self.device)
         # patch = patch.permute(0, 3, 1, 2)
 
