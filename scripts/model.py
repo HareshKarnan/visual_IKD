@@ -11,17 +11,13 @@ class VisualIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
         super(VisualIKDNet, self).__init__()
         self.visual_encoder = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, stride=2),
-            nn.BatchNorm2d(32), nn.PReLU(), # 31x31
+            nn.Conv2d(3, 32, kernel_size=3, stride=2), nn.ReLU(), # 31x31
             nn.MaxPool2d(kernel_size=2, stride=2), # 15x15
-            nn.Conv2d(32, 64, kernel_size=3, stride=2),
-            nn.BatchNorm2d(64), nn.PReLU(), # 15x15
-            nn.MaxPool2d(kernel_size=2, stride=2), # 7x7
-            nn.Conv2d(64, 128, kernel_size=3, stride=2),
-            nn.BatchNorm2d(128), nn.PReLU(), # 7x7
+            nn.Conv2d(32, 64, kernel_size=3, stride=2), nn.ReLU(), # 7x7
             nn.MaxPool2d(kernel_size=2, stride=2), # 3x3
+            nn.Conv2d(64, 128, kernel_size=3, stride=2), nn.ReLU(), # 1x1
             nn.Flatten(),
-            nn.Linear(3*3*128, hidden_size), nn.PReLU(),
+            nn.Linear(128, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, 16)
         )
 
