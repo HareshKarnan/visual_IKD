@@ -62,21 +62,22 @@ class LiveDataProcessor(object):
         self.data['gyro'] = self.gyro_msgs.flatten()
 
         # get the bird's eye view image
-        bevimage = self.camera_imu_homography(vectornavimu, image)
+        # bevimage = self.camera_imu_homography(vectornavimu, image)
+        bevimage = None
 
         # add this to the trailing history
-        self.history_storage['bevimage'] = self.history_storage['bevimage'][-29:] + [bevimage]
-        self.history_storage['odom_msg'] = self.history_storage['odom_msg'][-29:] + [odom]
+        self.history_storage['bevimage'] = self.history_storage['bevimage'][-4:] + [bevimage]
+        self.history_storage['odom_msg'] = self.history_storage['odom_msg'][-4:] + [odom]
 
-        # check if 30 frames have been collected
-        if len(self.history_storage['bevimage']) < 30:
+        # check if 5 frames have been collected
+        if len(self.history_storage['bevimage']) < 5:
             cprint('Not enough frames. Waiting for more frames to accumulate')
             return
 
-        # if code reaches here, then 30 frames have been collected and we are ready to serve data for the model
+        # if code reaches here, then 5 frames have been collected and we are ready to serve data for the model
         self.data_ready = True
 
-        # search for the patch in the past 30 frames
+        # search for the patch in the past 5 frames
         # found_patch, patch = False, None
         # for j in range(5, -1, -1):
         #     prev_image = self.history_storage['bevimage'][j]
@@ -86,12 +87,12 @@ class LiveDataProcessor(object):
         #         prev_odom.twist.twist, prev_image, bevimage)
         #     if patch is not None:
         #         # patch has been found. Stop searching
-        #         cprint('Found patch in the past 30 frames', 'green', attrs=['bold'])
+        #         cprint('Found patch in the past 5 frames', 'green', attrs=['bold'])
         #         found_patch = True
         #         break
         #
         # if not found_patch:
-        #     cprint('Could not find patch in the past 30 frames', 'red', attrs=['bold'])
+        #     cprint('Could not find patch in the past 5 frames', 'red', attrs=['bold'])
         patch = bevimage[500:564, 613:677]
 
         patch = cv2.resize(patch, (PATCH_SIZE, PATCH_SIZE))
@@ -259,10 +260,10 @@ class IKDNode(object):
         desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
 
         # form the input tensors
-        # accel = torch.tensor(data['accel']).to(device=self.device)
-        # gyro = torch.tensor(data['gyro']).to(device=self.device)
-        # odom_input = np.concatenate((odom_history, desired_odom))
-        # odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
+        accel = torch.tensor(data['accel']).to(device=self.device)
+        gyro = torch.tensor(data['gyro']).to(device=self.device)
+        odom_input = np.concatenate((odom_history, desired_odom))
+        odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
         # patch = torch.tensor(data['patch']).unsqueeze(0).to(device=self.device)
         # patch = patch.permute(0, 3, 1, 2)
 
