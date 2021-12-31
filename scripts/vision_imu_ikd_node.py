@@ -275,7 +275,7 @@ class IKDNode(object):
         #
         # # print("desired : ", desired_odom)
         # v, w = output.squeeze(0).detach().cpu().numpy()
-        v, w = 0.0, 0.0
+        v, w = 0.1, 1.0
 
         print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
         print("Output Nav Command : ", v, w)
