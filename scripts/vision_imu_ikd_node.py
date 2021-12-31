@@ -62,8 +62,7 @@ class LiveDataProcessor(object):
         self.data['gyro'] = self.gyro_msgs.flatten()
 
         # get the bird's eye view image
-        # bevimage = self.camera_imu_homography(vectornavimu, image)
-        bevimage = None
+        bevimage = self.camera_imu_homography(vectornavimu, image)
 
         # add this to the trailing history
         self.history_storage['bevimage'] = self.history_storage['bevimage'][-4:] + [bevimage]
