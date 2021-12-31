@@ -261,14 +261,16 @@ class IKDNode(object):
         odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
 
 
-        with torch.no_grad():
-            output = self.model(accel,
-                                gyro,
-                                odom_input.unsqueeze(0).float(),
-                                patch)
+        # with torch.no_grad():
+        #     output = self.model(accel,
+        #                         gyro,
+        #                         odom_input.unsqueeze(0).float(),
+        #                         patch)
+        #
+        # # print("desired : ", desired_odom)
+        # v, w = output.squeeze(0).detach().cpu().numpy()
 
-        # print("desired : ", desired_odom)
-        v, w = output.squeeze(0).detach().cpu().numpy()
+        v, w = 1.0, 0.1
 
         print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
         print("Output Nav Command : ", v, w)
