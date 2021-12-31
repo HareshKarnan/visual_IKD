@@ -21,6 +21,9 @@ from amrl_msgs.msg import AckermannCurvatureDriveMsg
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.2 * PATCH_SIZE * PATCH_SIZE
 ACTUATION_LATENCY = 0.1
+C_i = np.array(
+    [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0, 1.0]).reshape(
+    (3, 3))
 
 class LiveDataProcessor(object):
     def __init__(self, config_path, history_len):
@@ -50,19 +53,16 @@ class LiveDataProcessor(object):
 
         self.data = {'accel': None, 'gyro': None, 'odom': None, 'patch': None}
         self.history_storage = {'bevimage': [], 'odom_msg': []}
-        self.n = 0
         self.data_ready = False
 
     def callback(self, odom, image, vectornavimu):
-        self.n += 1
+        # populate the data dictionary
         self.data['odom'] = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
-
-        # retain the history of accel and gyro
         self.data['accel'] = self.accel_msgs.flatten()
         self.data['gyro'] = self.gyro_msgs.flatten()
 
         # get the bird's eye view image
-        bevimage, _ = self.camera_imu_homography(vectornavimu, image)
+        bevimage = self.camera_imu_homography(vectornavimu, image)
 
         # add this to the trailing history
         self.history_storage['bevimage'] = self.history_storage['bevimage'][-29:] + [bevimage]
@@ -116,18 +116,12 @@ class LiveDataProcessor(object):
     @staticmethod
     def camera_imu_homography(imu, image):
         orientation_quat = [imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w]
-        C_i = np.array(
-            [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0, 1.0]).reshape(
-            (3, 3))
 
         R_imu_world = R.from_quat(orientation_quat)
         R_imu_world = R_imu_world.as_euler('xyz', degrees=True)
-        R_imu_world[0], R_imu_world[1] = -R_imu_world[0], R_imu_world[1]
-        R_imu_world[2] = 0.
+        R_imu_world[0], R_imu_world[1], R_imu_world[2] = -R_imu_world[0], R_imu_world[1], 0.
 
-        R_imu_world = R_imu_world
         R_imu_world = R.from_euler('xyz', R_imu_world, degrees=True)
-
         R_cam_imu = R.from_euler("xyz", [90, -90, 0], degrees=True)
         R1 = R_cam_imu * R_imu_world
         R1 = R1.as_matrix()
@@ -135,8 +129,7 @@ class LiveDataProcessor(object):
         R2 = R.from_euler("xyz", [0, 0, -90], degrees=True).as_matrix()
         t1 = R1 @ np.array([0., 0., 0.5]).reshape((3, 1))
         t2 = R2 @ np.array([-2.5, -0., 6.0]).reshape((3, 1))
-        n = np.array([0, 0, 1]).reshape((3, 1))
-        n1 = R1 @ n
+        n1 = R1 @ np.array([0, 0, 1]).reshape((3, 1))
 
         H12 = LiveDataProcessor.homography_camera_displacement(R1, R2, t1, t2, n1)
         homography_matrix = C_i @ H12 @ np.linalg.inv(C_i)
@@ -149,7 +142,7 @@ class LiveDataProcessor(object):
         # flip output horizontally
         output = cv2.flip(output, 1)
 
-        return output, img
+        return output
 
     @staticmethod
     def homography_camera_displacement(R1, R2, t1, t2, n1):
@@ -267,11 +260,11 @@ class IKDNode(object):
         desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
 
         # form the input tensors
-        accel = torch.tensor(data['accel']).to(device=self.device).unsqueeze(0)
-        gyro = torch.tensor(data['gyro']).to(device=self.device).unsqueeze(0)
+        accel = torch.tensor(data['accel']).unsqueeze(0).to(device=self.device)
+        gyro = torch.tensor(data['gyro']).unsqueeze(0).to(device=self.device)
         odom_input = np.concatenate((odom_history, desired_odom))
-        odom_input = torch.tensor(odom_input.flatten()).to(device=self.device).unsqueeze(0)
-        patch = torch.tensor(data['patch']).to(device=self.device).unsqueeze(0)
+        odom_input = torch.tensor(odom_input.flatten()).unsqueeze(0).to(device=self.device)
+        patch = torch.tensor(data['patch']).unsqueeze(0).to(device=self.device)
         patch = patch.permute(0, 3, 1, 2)
 
         with torch.no_grad():
