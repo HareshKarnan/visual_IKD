@@ -96,8 +96,8 @@ class LiveDataProcessor(object):
         patch = bevimage[500:564, 613:677]
         patch = patch.astype(np.float32)
         patch = patch / 255.0
-        self.data['patch'] = torch.tensor(patch).to(self.device)
-        # self.data['patch'] = self.data['patch'].permute(0, 3, 1, 2)
+        self.data['patch'] = torch.tensor(patch).unsqueeze(0).to(self.device)
+        self.data['patch'] = self.data['patch'].permute(0, 3, 1, 2)
 
     def get_data(self):
         return self.data
@@ -266,7 +266,7 @@ class IKDNode(object):
             output = self.model(accel.unsqueeze(0).float(),
                                 gyro.unsqueeze(0).float(),
                                 odom_input.unsqueeze(0).float(),
-                                patch.unsqueeze(0).float())
+                                patch.float())
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
