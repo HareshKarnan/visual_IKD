@@ -94,6 +94,10 @@ class LiveDataProcessor(object):
             cprint('Could not find patch in the past 30 frames', 'red', attrs=['bold'])
             patch = bevimage[500:564, 613:677]
 
+        patch = cv2.resize(patch, (PATCH_SIZE, PATCH_SIZE))
+        patch = patch.astype(np.float32)
+        patch = patch / 255.0
+
         self.data['patch'] = patch
 
     def get_data(self):
