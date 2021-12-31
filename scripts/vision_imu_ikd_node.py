@@ -78,7 +78,7 @@ class LiveDataProcessor(object):
 
         # search for the patch in the past 30 frames
         found_patch, patch = False, None
-        for j in range(len(self.history_storage['bevimage'])-2, -1, -1):
+        for j in range(5, -1, -1):
             prev_image = self.history_storage['bevimage'][j]
             prev_odom = self.history_storage['odom_msg'][j]
             patch, patch_black_pct, curr_img, vis_img = self.get_patch_from_odom_delta(
