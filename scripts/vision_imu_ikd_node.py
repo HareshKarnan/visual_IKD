@@ -97,7 +97,7 @@ class LiveDataProcessor(object):
         patch = patch.astype(np.float32)
         patch = patch / 255.0
         self.data['patch'] = torch.tensor(patch).to(self.device)
-        self.data['patch'] = self.data['patch'].permute(0, 3, 1, 2)
+        # self.data['patch'] = self.data['patch'].permute(0, 3, 1, 2)
 
     def get_data(self):
         return self.data
