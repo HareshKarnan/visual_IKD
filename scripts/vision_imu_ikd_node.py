@@ -250,7 +250,6 @@ class IKDNode(object):
         self.nav_publisher = rospy.Publisher(self.output_topic, AckermannCurvatureDriveMsg, queue_size=1)
 
     def navCallback(self, msg):
-
         data = self.data_processor.get_data()
         if not self.data_processor.data_ready:
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
@@ -258,12 +257,12 @@ class IKDNode(object):
 
         odom_history = np.asarray(data['odom']).flatten()
         desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
-        #
+
         # form the input tensors
-        accel = torch.tensor(data['accel']).to(device=self.device)
-        gyro = torch.tensor(data['gyro']).to(device=self.device)
-        odom_input = np.concatenate((odom_history, desired_odom))
-        odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
+        # accel = torch.tensor(data['accel']).to(device=self.device)
+        # gyro = torch.tensor(data['gyro']).to(device=self.device)
+        # odom_input = np.concatenate((odom_history, desired_odom))
+        # odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
         # patch = torch.tensor(data['patch']).unsqueeze(0).to(device=self.device)
         # patch = patch.permute(0, 3, 1, 2)
 
