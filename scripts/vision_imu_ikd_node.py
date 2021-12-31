@@ -260,17 +260,17 @@ class IKDNode(object):
         desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
         #
         # form the input tensors
-        accel = torch.tensor(data['accel']).unsqueeze(0).to(device=self.device)
-        gyro = torch.tensor(data['gyro']).unsqueeze(0).to(device=self.device)
+        accel = torch.tensor(data['accel']).to(device=self.device)
+        gyro = torch.tensor(data['gyro']).to(device=self.device)
         odom_input = np.concatenate((odom_history, desired_odom))
-        odom_input = torch.tensor(odom_input.flatten()).unsqueeze(0).to(device=self.device)
+        odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
         # patch = torch.tensor(data['patch']).unsqueeze(0).to(device=self.device)
         # patch = patch.permute(0, 3, 1, 2)
 
         # with torch.no_grad():
-        #     output = self.model(accel.float(),
-        #                         gyro.float(),
-        #                         odom_input.float(),
+        #     output = self.model(accel.unsqueeze(0).float(),
+        #                         gyro.unsqueeze(0).float(),
+        #                         odom_input.unsqueeze(0).float(),
         #                         patch.float())
         #
         # # print("desired : ", desired_odom)
