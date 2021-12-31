@@ -266,11 +266,11 @@ class IKDNode(object):
         #                         gyro,
         #                         odom_input,
         #                         patch)
+        #
+        # # print("desired : ", desired_odom)
+        # v, w = output.squeeze(0).cpu().numpy()
 
-        # print("desired : ", desired_odom)
-        v, w = output.squeeze(0).cpu().numpy()
-
-        # v, w = 1.0, 0.1
+        v, w = 1.0, 0.1
 
         print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
         print("Output Nav Command : ", v, w)
