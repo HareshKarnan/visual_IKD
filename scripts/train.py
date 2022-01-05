@@ -38,19 +38,20 @@ class IKDModel(pl.LightningModule):
 
         self.loss = torch.nn.MSELoss()
 
-    def forward(self, accel, gyro, odom, bevimage=None):
+    def forward(self, accel, gyro, odom, bevimage=None, patch_observed=None):
         if self.use_vision:
             # return self.ikd_model(odom_1sec_history, odom, bevimage)
-            return self.ikd_model(accel, gyro, odom, bevimage)
+            return self.ikd_model(accel, gyro, odom, bevimage, patch_observed)
         else:
             # return self.ikd_model(odom_1sec_history, odom)
             return self.ikd_model(accel, gyro, odom)
 
     def training_step(self, batch, batch_idx):
-        odom, joystick, accel, gyro, bevimage = batch
+        odom, joystick, accel, gyro, bevimage, patches_found = batch
         if self.use_vision:
-            bevimage = bevimage.permute(0, 3, 1, 2)
-            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage.float())
+            if bevimage is not None:
+                bevimage = bevimage.permute(0, 3, 1, 2).float()
+            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found)
         else:
             prediction = self.forward(accel.float(), gyro.float(), odom.float())
 
@@ -59,10 +60,11 @@ class IKDModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        odom, joystick, accel, gyro, bevimage = batch
+        odom, joystick, accel, gyro, bevimage, patches_found = batch
         if self.use_vision:
-            bevimage = bevimage.permute(0, 3, 1, 2)
-            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage.float())
+            if bevimage is not None:
+                bevimage = bevimage.permute(0, 3, 1, 2).float()
+            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found)
         else:
             prediction = self.forward(accel.float(), gyro.float(), odom.float())
 
@@ -80,7 +82,6 @@ class ProcessedBagDataset(Dataset):
     def __init__(self, data, history_len):
         self.data = data
         self.history_len = history_len
-
         self.data['odom'] = np.asarray(self.data['odom'])
         self.data['joystick'] = np.asarray(self.data['joystick'])
         # self.data['odom_1sec_msg'] = np.asarray(self.data['odom_1sec_msg'])
@@ -116,15 +117,16 @@ class ProcessedBagDataset(Dataset):
         gyro = self.data['gyro_msg'][idx]
         joystick = self.data['joystick'][idx]
         patches = self.data['patches'][idx]
-        patch = patches[np.random.randint(0, len(patches))] # pick a random patch
+        patches_found = self.data['patches_found'][idx]
 
+        patch = patches[np.random.randint(0, len(patches))] # pick a random patch
         patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
         patch /= 255.0
 
         # cv2.imshow('disp', patch)
         # cv2.waitKey(0)
 
-        return odom_val, joystick, accel, gyro, patch
+        return odom_val, joystick, accel, gyro, patch, patches_found
 
 class IKDDataModule(pl.LightningDataModule):
     def __init__(self, data_dir, train_dataset_names, val_dataset_names, batch_size, history_len):

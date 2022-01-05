@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-dataset_path = '/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train1_data'
+dataset_path = '/robodata/kvsikand/visualIKD/train1_data'
 pickle_file_paths = glob.glob(dataset_path + '/*.pkl')
 
 print(pickle_file_paths)
@@ -35,6 +35,10 @@ for pickle_file in tqdm(pickle_file_paths):
 	data['vescdrive'] = np.array(data['vescdrive'])
 	data['odom'] = np.array(data['odom'])
 
+	print(len(data['odom']))
+
+
+
 
 	# plt.subplot(2, 1, 1)
 	# plt.plot(np.arange(len(data['joystick'][:, 0])), data['joystick'][:, 0])
@@ -45,17 +49,17 @@ for pickle_file in tqdm(pickle_file_paths):
 	# plt.show()
 	# data['odom'][:, 0] = np.sqrt(data['odom'][:, 3] ** 2 + data['odom'][:, 4] ** 2)
 
-	plt.figure(figsize=(20, 10))
-	plt.subplot(2, 1, 1)
-	plt.plot(data['odom'][:, 0], '-r')
-	plt.plot(data['joystick'][:, 0], '-b')
-	plt.subplot(2, 1, 2)
-	plt.plot(data['odom'][:, 2], '-r')
-	plt.plot(data['joystick'][:, 1], '-b')
-	plt.plot(data['vescdrive'][:, 1], '-g')
-	plt.show()
+	# plt.figure(figsize=(20, 10))
+	# plt.subplot(2, 1, 1)
+	# plt.plot(data['odom'][:, 0], '-r')
+	# plt.plot(data['joystick'][:, 0], '-b')
+	# plt.subplot(2, 1, 2)
+	# plt.plot(data['odom'][:, 2], '-r')
+	# plt.plot(data['joystick'][:, 1], '-b')
+	# plt.plot(data['vescdrive'][:, 1], '-g')
+	# plt.show()
 
-	for i in range(len(data['patches'])):
-		cv2.imshow('patch 1', data['patches'][i][-1])
-		print('patch found : ', data['patches_found'][i])
-		cv2.waitKey(0)
+	# for i in range(len(data['patches'])):
+	# 	cv2.imshow('patch 1', data['patches'][i][-1])
+	# 	print('patch found : ', data['patches_found'][i])
+	# 	cv2.waitKey(0)
