@@ -15,12 +15,12 @@ if __name__ == '__main__':
     parser.add_argument('--history_len', type=int, default=5)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--hidden_size', type=int, default=32)
-    parser.add_argument('--use_vision', action='store_true', default=False)
+    parser.add_argument('--use_vision', action='store_true', default=True)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = IKDModel.load_from_checkpoint('models/30-12-2021-16-06-24.ckpt', use_vision=args.use_vision)
+    model = IKDModel.load_from_checkpoint('models/30-12-2021-18-19-39.ckpt', use_vision=args.use_vision)
     model = model.to(device)
     model.eval()
 
