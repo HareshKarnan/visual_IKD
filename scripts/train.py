@@ -108,7 +108,6 @@ class ProcessedBagDataset(Dataset):
         odom_next = self.data['odom'][idx][-3:]
 
         odom_val = np.hstack((odom_curr,
-                              # np.sqrt(odom_next[0]**2 + odom_next[1]**2),
                               odom_next[0],
                               odom_next[2])).flatten()
 
@@ -126,7 +125,7 @@ class ProcessedBagDataset(Dataset):
         # cv2.imshow('disp', patch)
         # cv2.waitKey(0)
 
-        return odom_val, joystick, accel, gyro, patch, patches_found
+        return odom_val, joystick-odom_val[-2:], accel, gyro, patch, patches_found
 
 class IKDDataModule(pl.LightningDataModule):
     def __init__(self, data_dir, train_dataset_names, val_dataset_names, batch_size, history_len):

@@ -10,29 +10,41 @@ class L2Normalize(nn.Module):
 class VisualIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
         super(VisualIKDNet, self).__init__()
+        # self.visual_encoder = nn.Sequential(
+        #      nn.Conv2d(3, 3, kernel_size=3, stride=2),
+        #      nn.BatchNorm2d(3), nn.PReLU(), # 31x31
+        #      nn.Conv2d(3, 6, kernel_size=3, stride=2),
+        #      nn.BatchNorm2d(6), nn.PReLU(), # 15x15
+        #      nn.Conv2d(6, 8, kernel_size=3, stride=2),
+        #      nn.BatchNorm2d(8), nn.PReLU(), # 7x7
+        #      nn.Flatten(),
+        #      nn.Linear(7*7*8, hidden_size), nn.PReLU(),
+        #      nn.Linear(hidden_size, 16)
+        # )
+
         self.visual_encoder = nn.Sequential(
-             nn.Conv2d(3, 32, kernel_size=3, stride=2),
-             nn.BatchNorm2d(32), nn.PReLU(), # 31x31
-             nn.Conv2d(32, 64, kernel_size=3, stride=2),
-             nn.BatchNorm2d(64), nn.PReLU(), # 15x15
-             nn.Conv2d(64, 128, kernel_size=3, stride=2),
-             nn.BatchNorm2d(128), nn.PReLU(), # 7x7
+             nn.Conv2d(3, 16, kernel_size=3, stride=2),
+             nn.BatchNorm2d(16), nn.PReLU(), # 31x31
+             nn.MaxPool2d(kernel_size=3, stride=2), # 15x15
+             nn.Conv2d(16, 32, kernel_size=3, stride=2),
+             nn.BatchNorm2d(32), nn.PReLU(), # 7x7
+             nn.MaxPool2d(kernel_size=3, stride=2), # 3x3
              nn.Flatten(),
-             nn.Linear(7*7*128, hidden_size), nn.PReLU(),
-             nn.Linear(hidden_size, 16)
+             nn.Linear(3*3*32, 64), nn.PReLU(),
+             nn.Linear(64, 16)
         )
         
         self.imu_net = nn.Sequential(
             nn.Linear(200 * 3 + 60 * 3, 128), nn.BatchNorm1d(128), nn.PReLU(),
-            nn.Linear(128, 64), nn.BatchNorm1d(64), nn.PReLU(),
+            nn.Linear(128, 64), nn.PReLU(),
             nn.Linear(64, 16),
-            nn.Dropout(p=0.1)
         )
 
         self.ikdmodel = nn.Sequential(
-            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16 + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            # nn.Linear(input_size - (200 * 3 + 60 * 3) + 16 + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
         )
 
@@ -40,8 +52,9 @@ class VisualIKDNet(nn.Module):
         visual_embedding = self.visual_encoder(image)
         unobserved_indices = torch.nonzero(torch.logical_not(patch_observed)).squeeze()
         visual_embedding[unobserved_indices] = torch.zeros((1, 16)).cuda()
-        imu_embedding = self.imu_net(torch.cat((accel, gyro), dim=1))
-        return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
+        # imu_embedding = self.imu_net(torch.cat((accel, gyro), dim=1))
+        # return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
+        return self.ikdmodel(torch.cat((odom, visual_embedding), dim=1))
 
 
 class SimpleIKDNet(nn.Module):
@@ -49,14 +62,13 @@ class SimpleIKDNet(nn.Module):
         super(SimpleIKDNet, self).__init__()
         self.imu_net = nn.Sequential(
             nn.Linear(200*3 + 60 * 3, 128), nn.BatchNorm1d(128), nn.PReLU(),
-            nn.Linear(128, 64), nn.BatchNorm1d(64), nn.PReLU(),
+            nn.Linear(128, 64), nn.PReLU(),
             nn.Linear(64, 16),
-            nn.Dropout(p=0.1)
         )
         self.ikdmodel = nn.Sequential(
             nn.Linear(input_size - (200*3 + 60 * 3) + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
         )
 

@@ -16,23 +16,43 @@ from termcolor import cprint
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--loop', action='store_true')
-parser.add_argument('--waypoints', type=str, required=True, help='json file containing an array of waypoints')
+parser.add_argument('--waypoints', type=str, default='waypoints.yaml')
 
 args = parser.parse_args()
+
+def load_waypoints(waypoint_path):
+	# get the ground truth waypoint data
+	with open(waypoint_path) as f:
+		waypoints = yaml.load(f)
+
+	pos = []
+	for key in waypoints.keys():
+		pos.append(waypoints[key]['position'])
+	pos = np.asarray(pos)
+	return pos
 
 # read the yaml file and load
 with open(args.waypoints) as f:
 	waypoints = yaml.load(f)
 
-print('waypoints : ', waypoints)
+
+# print('waypoints : ', waypoints)
+
+def resample_waypoints(waypoints, factor):
+	resample_waypoints = {}
+	for i, key in enumerate(list(waypoints.keys())[::factor]):
+		resample_waypoints[i] = waypoints[key]
+	return resample_waypoints
+
 
 class WaypointNavigator():
 	WAYPOINT_THRESHOLD = 0.75
 
-	def __init__(self, waypoints):
-
-
+	def __init__(self, waypoints, visualize=False):
 		self.waypoints = waypoints
+		self.waypoints = resample_waypoints(waypoints, 20)
+		print('total waypoints :: ', len(self.waypoints))
+		self.visualize = visualize
 
 		self.current_waypoint = 1
 		rospy.Subscriber("localization", Localization2DMsg, self.loc_callback)
@@ -43,14 +63,13 @@ class WaypointNavigator():
 		cprint('Initialized waypoint navigator', 'green', attrs=['bold'])
 
 	def get_target_waypoint(self):
-		if (self.current_waypoint >= len(self.waypoints)-10):
+		if (self.current_waypoint == len(self.waypoints)):
 			if (args.loop):
 				print("Circuit Complete, restarting...")
 				# find the closest waypoint to the current location
-				self.current_waypoint = self.get_closest_waypoint() + 5
+				self.current_waypoint = self.get_closest_waypoint() + 1
 				print('closest waypoint : ', self.current_waypoint)
 
-				# self.current_waypoint = 1
 			else:
 				print("Completed waypoint navigation, exiting...")
 				exit(0)
@@ -66,7 +85,7 @@ class WaypointNavigator():
 			if (dist < closest_waypoint_dist):
 				closest_waypoint = i
 				closest_waypoint_dist = dist
-
+		cprint('Found closest waypoint as :: ' + str(closest_waypoint), 'green', attrs=['bold'])
 		return closest_waypoint
 
 	def loc_callback(self, loc):
@@ -74,7 +93,7 @@ class WaypointNavigator():
 		target_waypoint = self.get_target_waypoint()
 
 		if WaypointNavigator.is_close(target_waypoint, loc.pose):
-			self.current_waypoint = min(len(self.waypoints)-1, self.current_waypoint + 10)
+			self.current_waypoint = min(len(self.waypoints), self.current_waypoint + 1)
 			self.send_nav_command()
 
 	def send_nav_command(self):

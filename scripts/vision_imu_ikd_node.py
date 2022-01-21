@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 import argparse
+import os
+
 import rospy
 import torch
 torch.backends.cudnn.benchmark = True
@@ -14,22 +16,35 @@ from termcolor import cprint
 import yaml
 from scipy.spatial.transform import Rotation as R
 
-from scripts.model import VisualIKDNet
+from scripts.model import VisualIKDNet, SimpleIKDNet
 
 import roslib
 roslib.load_manifest('amrl_msgs')
 from amrl_msgs.msg import AckermannCurvatureDriveMsg
 import time
+import torchgeometry as tgm
+import kornia
 
 PATCH_SIZE = 64
-PATCH_EPSILON = 0.2 * PATCH_SIZE * PATCH_SIZE
+PATCH_EPSILON = 0.1 * PATCH_SIZE * PATCH_SIZE
 ACTUATION_LATENCY = 0.1
 C_i = np.array(
     [622.0649233612024, 0.0, 633.1717569157071, 0.0, 619.7990184421728, 368.0688607187958, 0.0, 0.0, 1.0]).reshape(
     (3, 3))
+C_i_inv = np.linalg.inv(C_i)
+
+C_i_torch = torch.from_numpy(C_i).float().cuda()
+C_i_inv_torch = torch.from_numpy(C_i_inv).float().cuda()
+
+R2 = R.from_euler("xyz", [0, 0, -90], degrees=True).as_matrix()
+t2 = R2 @ np.array([-2.5, -0., 6.0]).reshape((3, 1))
+R_cam_imu = R.from_euler("xyz", [90, -90, 0], degrees=True)
+
+R2_torch = torch.from_numpy(R2).float().cuda()
+t2_torch = torch.from_numpy(t2).float().cuda()
 
 class LiveDataProcessor(object):
-    def __init__(self, config_path, history_len):
+    def __init__(self, config_path, history_len, model_path):
         self.data = []
         self.config_path = config_path
         self.history_len = history_len
@@ -40,68 +55,110 @@ class LiveDataProcessor(object):
             cprint('Parsed Config file successfully ', 'yellow', attrs=['blink'])
             print(self.config)
 
-        odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
-        image = message_filters.Subscriber("/webcam/image_raw/compressed", CompressedImage)
-        vectornavimu = message_filters.Subscriber("/vectornav/IMU", Imu)
-
-        # subscribe to accel and gyro topics
-        rospy.Subscriber('/camera/accel/sample', Imu, self.accel_callback) #60 hz
-        rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) #200 hz
-
-        ts = message_filters.ApproximateTimeSynchronizer([odom, image, vectornavimu], 10, 0.05, allow_headerless=True)
-        ts.registerCallback(self.callback)
 
         self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
         self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
-
+        self.imu_msg = None
         self.data = {'accel': None, 'gyro': None, 'odom': None, 'patch': None}
         self.history_storage = {'bevimage': [], 'odom_msg': []}
         self.data_ready = False
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.img_counter = 0
+        self.patch_history = 30
 
-    def callback(self, odom, image, vectornavimu):
+        print("Loading Model...")
+        assert os.path.exists(model_path), "Model doesn't exist in the path"
+        self.model = VisualIKDNet(input_size=3 * 60 + 3 * 200 + 3 + 2,
+                                  output_size=2,
+                                  hidden_size=32).to(device=self.device)
+        self.model.load_state_dict(torch.load(model_path))
+        self.model.eval()
+        print("Loaded Model")
+
+        rospy.Subscriber('/vectornav/IMU', Imu, self.imu_callback)
+        rospy.Subscriber('/camera/accel/sample', Imu, self.accel_callback) #60 hz
+        rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) #200 hz
+        rospy.Subscriber('/webcam/image_raw/compressed', CompressedImage, self.image_callback, queue_size=1)
+        rospy.Subscriber('camera/odom/sample', Odometry, self.callback)
+
+        self.nav_cmd = AckermannCurvatureDriveMsg()
+        self.nav_cmd.velocity = 0.0
+        self.nav_cmd.curvature = 0.0
+        rospy.Subscriber('/ackermann_drive_init', AckermannCurvatureDriveMsg, self.navCallback)
+        self.nav_publisher = rospy.Publisher('/ackermann_curvature_drive', AckermannCurvatureDriveMsg, queue_size=1)
+        self.patch_observed = torch.tensor([True]).to(device=self.device).unsqueeze(0).float()
+        self.callback_counter = 0
+
+    def navCallback(self, msg):
+        if not self.data_ready:
+            print("Waiting for data processor initialization...Are all the necessary sensors running?")
+            return
+        odom_input = np.concatenate((self.data['odom'], np.array([msg.velocity, msg.velocity * msg.curvature])))
+        odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
+
+        accel = torch.tensor(self.accel_msgs.flatten()).to(device=self.device)
+        gyro = torch.tensor(self.gyro_msgs.flatten()).to(device=self.device)
+
+        with torch.no_grad():
+            output = self.model(accel.unsqueeze(0).float(),
+                                gyro.unsqueeze(0).float(),
+                                odom_input.unsqueeze(0).float(),
+                                self.data['patch'].float().cuda(),
+                                self.patch_observed)
+        v, w = output.squeeze(0).cpu().numpy()
+
+        self.nav_cmd.velocity = v
+        self.nav_cmd.curvature = w / v
+        self.nav_publisher.publish(self.nav_cmd)
+
+    def callback(self, odom):
         # populate the data dictionary
+
         self.data['odom'] = np.array([odom.twist.twist.linear.x, odom.twist.twist.linear.y, odom.twist.twist.angular.z])
-        self.data['accel'] = torch.tensor(self.accel_msgs.flatten()).to(self.device).unsqueeze(0).float()
-        self.data['gyro'] = torch.tensor(self.gyro_msgs.flatten()).to(self.device).unsqueeze(0).float()
+        self.latest_odom_msg = odom
 
-        # get the bird's eye view image
-        bevimage = self.camera_imu_homography(vectornavimu, image)
-
-        # add this to the trailing history
-        self.history_storage['bevimage'] = self.history_storage['bevimage'][-4:] + [bevimage]
-        self.history_storage['odom_msg'] = self.history_storage['odom_msg'][-4:] + [odom]
-
-        # check if 5 frames have been collected
-        if len(self.history_storage['odom_msg']) < 5:
+        # check if 10 frames have been collected
+        if len(self.history_storage['odom_msg']) < self.patch_history and len(self.history_storage['bevimage']) < self.patch_history:
             cprint('Not enough frames. Waiting for more frames to accumulate')
             return
 
-        # if code reaches here, then 5 frames have been collected and we are ready to serve data for the model
+        self.callback_counter += 1
+        if self.callback_counter % 100 != 0: return
+
+        # search for the patch in the past 3 frames
+        found_patch, patch = False, None
+        for j in range(self.patch_history):
+            prev_image = self.history_storage['bevimage'][j]
+            prev_odom = self.history_storage['odom_msg'][j]
+            patch, patch_black_pct = self.get_patch_from_odom_delta(odom.pose.pose, prev_odom.pose.pose, odom.twist.twist, prev_image)
+            if patch is not None:
+                # patch has been found. Stop searching
+                cprint('Found patch in the past 3 frames', 'green', attrs=['bold'])
+                found_patch = True
+                cv2.imshow('patch', patch)
+                cv2.waitKey(1)
+                patch = patch.astype(np.float32)/255.0
+                patch = torch.from_numpy(patch).unsqueeze(0)
+                self.patch_observed = torch.tensor([True]).to(device=self.device).unsqueeze(0).float()
+                break
+
+        if not found_patch:
+            cprint('Could not find patch in the past 5 frames', 'red', attrs=['bold'])
+            patch = self.bevimage_tensor[500:564, 613:677, :3].unsqueeze(0)
+            self.patch_observed = torch.tensor([False]).to(device=self.device).unsqueeze(0).float()
+
+        self.data['patch'] = patch.permute(0, 3, 1, 2)
         self.data_ready = True
 
-        # search for the patch in the past 5 frames
-        # found_patch, patch = False, None
-        # for j in range(5, -1, -1):
-        #     prev_image = self.history_storage['bevimage'][j]
-        #     prev_odom = self.history_storage['odom_msg'][j]
-        #     patch, patch_black_pct, curr_img, vis_img = self.get_patch_from_odom_delta(
-        #         odom.pose.pose, prev_odom.pose.pose, odom.twist.twist,
-        #         prev_odom.twist.twist, prev_image, bevimage)
-        #     if patch is not None:
-        #         # patch has been found. Stop searching
-        #         cprint('Found patch in the past 5 frames', 'green', attrs=['bold'])
-        #         found_patch = True
-        #         break
-        #
-        # if not found_patch:
-        #     cprint('Could not find patch in the past 5 frames', 'red', attrs=['bold'])
-
-        # patch = bevimage[500:564, 613:677]
-        # patch = patch.astype(np.float32)
-        # patch = patch / 255.0
-        # patch = torch.tensor(patch).unsqueeze(0).to(self.device).float()
-        # self.data['patch'] = patch.permute(0, 3, 1, 2)
+    def image_callback(self, image):
+        # TODO: instead of processing based on img_counter, use the odom distance
+        self.img_counter += 1
+        if self.img_counter % 10 == 0:
+            self.history_storage['odom_msg'] = self.history_storage['odom_msg'][-self.patch_history-1:] + [self.latest_odom_msg]
+            self.bevimage_tensor = self.camera_imu_homography(self.imu_msg, image)
+            bevimage = ((self.bevimage_tensor/255.0).cpu().numpy()*255.0).astype(np.uint8)
+            self.history_storage['bevimage'] = self.history_storage['bevimage'][-self.patch_history-1:] + [bevimage]
+        return
 
     def get_data(self):
         return self.data
@@ -116,8 +173,7 @@ class LiveDataProcessor(object):
         self.gyro_msgs = np.roll(self.gyro_msgs, -1, axis=0)
         self.gyro_msgs[-1] = np.array([msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z])
 
-    @staticmethod
-    def camera_imu_homography(imu, image):
+    def camera_imu_homography(self, imu, image):
         orientation_quat = [imu.orientation.x, imu.orientation.y, imu.orientation.z, imu.orientation.w]
 
         R_imu_world = R.from_quat(orientation_quat)
@@ -125,30 +181,44 @@ class LiveDataProcessor(object):
         R_imu_world[0], R_imu_world[1], R_imu_world[2] = -R_imu_world[0], R_imu_world[1], 0.
 
         R_imu_world = R.from_euler('xyz', R_imu_world, degrees=True)
-        R_cam_imu = R.from_euler("xyz", [90, -90, 0], degrees=True)
         R1 = R_cam_imu * R_imu_world
         R1 = R1.as_matrix()
 
-        R2 = R.from_euler("xyz", [0, 0, -90], degrees=True).as_matrix()
-        t1 = R1 @ np.array([0., 0., 0.5]).reshape((3, 1))
-        t2 = R2 @ np.array([-2.5, -0., 6.0]).reshape((3, 1))
-        n1 = R1 @ np.array([0, 0, 1]).reshape((3, 1))
+        # t1 = R1 @ np.array([0., 0., 0.5]).reshape((3, 1))
+        # n1 = R1 @ np.array([0, 0, 1]).reshape((3, 1))
+        # H12 = LiveDataProcessor.homography_camera_displacement(R1, t1, n1)
+        # homography_matrix = C_i @ H12 @ np.linalg.inv(C_i)
+        # homography_matrix /= homography_matrix[2, 2]
 
-        H12 = LiveDataProcessor.homography_camera_displacement(R1, R2, t1, t2, n1)
-        homography_matrix = C_i @ H12 @ np.linalg.inv(C_i)
-        homography_matrix /= homography_matrix[2, 2]
+        H12 = LiveDataProcessor.homography_camera_displacement_torch(torch.from_numpy(R1).float().cuda())
+        homography_matrix_torch = torch.matmul(C_i_torch, torch.matmul(H12, C_i_inv_torch))
+        homography_matrix_torch = homography_matrix_torch / homography_matrix_torch[2, 2]
+        homography_matrix_torch = homography_matrix_torch.reshape((1, 3, 3)).cuda()
 
         img = np.fromstring(image.data, np.uint8)
         img = cv2.imdecode(img, cv2.IMREAD_COLOR)
 
-        output = cv2.warpPerspective(img, homography_matrix, (1280, 720))
-        # flip output horizontally
-        output = cv2.flip(output, 1)
+        # homoimg = cv2.warpPerspective(img.copy(), homography_matrix, (1280, 720))
+        # homoimg = cv2.flip(homoimg, 1)
+        # cv2.imshow('output', homoimg)
+        # cv2.waitKey(1)
 
-        return output
+        img_torch = kornia.image_to_tensor(img.astype(np.uint8), keepdim=False).cuda()
+        output_torch = kornia.geometry.transform.warp_perspective(img_torch.float(), homography_matrix_torch, (720, 1280)).squeeze(0)
+        output_torch = torch.flip(output_torch, [2]).permute(1, 2, 0)
+
+        # output_torch = output_torch/255.0
+        # homoimg = output_torch.cpu().detach().numpy()
+        # cv2.imshow('output', homoimg)
+        # cv2.waitKey(1)
+
+        return output_torch
+
+    def imu_callback(self, msg):
+        self.imu_msg = msg
 
     @staticmethod
-    def homography_camera_displacement(R1, R2, t1, t2, n1):
+    def homography_camera_displacement(R1, t1, n1):
         R12 = R2 @ R1.T
         t12 = R2 @ (- R1.T @ t1) + t2
         # d is distance from plane to t1.
@@ -159,7 +229,20 @@ class LiveDataProcessor(object):
         return H12
 
     @staticmethod
-    def get_patch_from_odom_delta(curr_pos, prev_pos, curr_vel, prev_vel, prev_image, curr_image):
+    def homography_camera_displacement_torch(R1):
+        t1 = torch.matmul(R1, torch.tensor([0., 0., 0.5]).float().cuda()).reshape((3, 1)).cuda()
+        n1 = torch.matmul(R1, torch.tensor([0, 0, 1]).float().cuda()).reshape((3, 1)).cuda()
+
+        R12 = torch.matmul(R2_torch, R1.T)
+        t12 = torch.matmul(R2_torch, torch.matmul(- R1.T, t1)) + t2_torch
+        d = torch.norm(torch.mm(n1, t1.T))
+
+        H12 = R12 - (torch.matmul(t12, n1.T) / d)
+        H12 = H12 / H12[2, 2]
+        return H12
+
+    @staticmethod
+    def get_patch_from_odom_delta(curr_pos, prev_pos, curr_vel, prev_image):
         curr_pos_np = np.array([curr_pos.position.x, curr_pos.position.y, 1])
         prev_pos_transform = np.zeros((3, 3))
         z_angle = R.from_quat(
@@ -167,8 +250,8 @@ class LiveDataProcessor(object):
             'xyz', degrees=False)[2]
         prev_pos_transform[:2, :2] = R.from_euler('xyz', [0, 0, z_angle]).as_matrix()[:2, :2]  # figure this out
         prev_pos_transform[:, 2] = np.array([prev_pos.position.x, prev_pos.position.y, 1]).reshape((3))
+        inv_pos_transform = LiveDataProcessor.affineinverse(prev_pos_transform)
 
-        inv_pos_transform = np.linalg.inv(prev_pos_transform)
         curr_z_angle = R.from_quat(
             [curr_pos.orientation.x, curr_pos.orientation.y, curr_pos.orientation.z, curr_pos.orientation.w]).as_euler(
             'xyz', degrees=False)[2]
@@ -202,12 +285,6 @@ class LiveDataProcessor(object):
             CENTER + np.array((-scaled_patch_corners[2][1], -scaled_patch_corners[2][0])),
             CENTER + np.array((-scaled_patch_corners[3][1], -scaled_patch_corners[3][0]))
         ]
-        vis_img = prev_image.copy()
-
-        projected_loc_prev_frame = inv_pos_transform @ projected_loc_np
-        scaled_projected_loc = (projected_loc_prev_frame * 200).astype(np.int)
-        projected_loc_image_frame = CENTER + np.array((-scaled_projected_loc[1], -scaled_projected_loc[0]))
-        cv2.circle(vis_img, (projected_loc_image_frame[0], projected_loc_image_frame[1]), 3, (0, 255, 255))
 
         persp = cv2.getPerspectiveTransform(np.float32(patch_corners_image_frame),
                                             np.float32([[0, 0], [63, 0], [63, 63], [0, 63]]))
@@ -221,71 +298,14 @@ class LiveDataProcessor(object):
         zero_count = np.logical_and(np.logical_and(patch[:, :, 0] == 0, patch[:, :, 1] == 0), patch[:, :, 2] == 0)
 
         if np.sum(zero_count) > PATCH_EPSILON:
-            return None, 1.0, None, None
+            return None, 1.0
 
-        return patch, (np.sum(zero_count) / (64. * 64.)), curr_image, vis_img
+        return patch, (np.sum(zero_count) / (64. * 64.))
 
-class IKDNode(object):
-    def __init__(self, data_processor, model_path, history_len, input_topic, output_topic):
-        self.model_path = model_path
-        self.data_processor = data_processor
-
-        self.history_len = history_len
-        self.input_topic = input_topic
-        self.output_topic = output_topic
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        cprint('Using device: {}'.format(self.device), 'yellow', attrs=['bold'])
-
-        print("Loading Model...")
-        self.model = VisualIKDNet(input_size=3*60 + 3*200 + 3 + 2,
-                                  output_size=2,
-                                  hidden_size=32).to(device=self.device)
-        if self.model_path is not None:
-            self.model.load_state_dict(torch.load(self.model_path))
-        self.model.eval()
-        print("Loaded Model")
-
-        self.nav_cmd = AckermannCurvatureDriveMsg()
-        self.nav_cmd.velocity = 0.0
-        self.nav_cmd.curvature = 0.0
-
-        rospy.Subscriber(self.input_topic, AckermannCurvatureDriveMsg, self.navCallback)
-        self.nav_publisher = rospy.Publisher(self.output_topic, AckermannCurvatureDriveMsg, queue_size=1)
-
-    def navCallback(self, msg):
-        data = self.data_processor.get_data()
-        if not self.data_processor.data_ready:
-            print("Waiting for data processor initialization...Are all the necessary sensors running?")
-            return
-        accel, gyro, patch = data['accel'], data['gyro'], data['patch']
-
-        odom_history = np.asarray(data['odom']).flatten()
-        desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
-        odom_input = np.concatenate((odom_history, desired_odom))
-        odom_input = torch.tensor(odom_input.flatten()).to(device=self.device).unsqueeze(0).float()
-
-        time_start = time.time()
-        with torch.no_grad():
-            output = self.model(accel,
-                                gyro,
-                                odom_input,
-                                patch)
-
-            # print("desired : ", desired_odom)
-            v, w = output.squeeze(0).cpu().numpy()
-        print("Time taken in seconds : ", time.time() - time_start)
-
-        # v, w = 1.0, 0.1
-
-        print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
-        print("Output Nav Command : ", v, w)
-
-        # populate with v and w
-        self.nav_cmd.velocity = v
-        self.nav_cmd.curvature = w / v
-        self.nav_publisher.publish(self.nav_cmd)
-        # time end
-
+    @staticmethod
+    def affineinverse(M):
+        tmp = np.hstack((-M[:2, :2], -M[:2, :2] @ M[:2, 2].reshape((2, 1))))
+        return np.vstack((tmp, np.array([0, 0, 1])))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='ikd node')
@@ -298,8 +318,8 @@ if __name__ == '__main__':
 
     rospy.init_node('ikd_node', anonymous=True)
 
-    data_processor = LiveDataProcessor(args.config_path, args.history_len)
-    node = IKDNode(data_processor, args.model_path, args.history_len, args.input_topic, args.output_topic)
+    data_processor = LiveDataProcessor(args.config_path, args.history_len, args.model_path)
+    # node = IKDNode(data_processor, args.model_path, args.history_len, args.input_topic, args.output_topic)
 
     while not rospy.is_shutdown():
         rospy.spin()

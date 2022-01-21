@@ -141,15 +141,15 @@ class IKDNode(object):
         print("Output Nav Command : ", v, w)
 
         # populate with v and w
-        self.nav_cmd.velocity = v
-        self.nav_cmd.curvature = w/v
+        self.nav_cmd.velocity = v + 0.75 * msg.velocity
+        self.nav_cmd.curvature = w/v + 0.75 * msg.curvature
 
         self.nav_publisher.publish(self.nav_cmd)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='ikd node')
-    parser.add_argument('--model_path', default='models/torchmodel.pt', type=str)
+    parser.add_argument('--model_path', default='models/imutorchmodel.pt', type=str)
     parser.add_argument('--input_topic', default='/ackermann_drive_init', type=str)
     parser.add_argument('--output_topic', default='/ackermann_curvature_drive',  type=str)
     parser.add_argument('--config_path', type=str, default="config/alphatruck.yaml")

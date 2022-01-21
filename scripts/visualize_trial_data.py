@@ -40,7 +40,7 @@ def read_expt_data_from_rosbags(rosbag_paths):
 def load_waypoints(waypoint_path):
 	# get the ground truth waypoint data
 	with open(waypoint_path) as f:
-		waypoints = yaml.load(f)
+		waypoints = yaml.load(f, Loader=yaml.FullLoader)
 
 	pos = []
 	for key in waypoints.keys():
