@@ -40,7 +40,7 @@ class ListenRecordData:
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
         joystick = message_filters.Subscriber('/joystick', Joy)
         vesc_drive = message_filters.Subscriber('/vesc_drive', TwistStamped)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu, vesc_drive], 10, 0.05, allow_headerless=True)
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu, vesc_drive], 20, 0.05, allow_headerless=True)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
         self.counter = 0
@@ -193,6 +193,15 @@ class ListenRecordData:
         for i in tqdm(range(len(msg_data['image_msg']))):
             bevimage, _ = ListenRecordData.camera_imu_homography(msg_data['vectornav'][i], msg_data['image_msg'][i])
             processed_data['image'].append(bevimage)
+
+            # cv2.imshow('disp', bevimage)
+            # cv2.waitKey(1)
+
+            #save this one image msg and the vector nav msg as a pickle file
+
+            # pickle.dump(msg_data['image_msg'][i], open('/home/haresh/PycharmProjects/visual_IKD/tmp/image_msg.pkl', 'wb'))
+            # pickle.dump(msg_data['vectornav'][i], open('/home/haresh/PycharmProjects/visual_IKD/tmp/imu_msg.pkl', 'wb'))
+            # input()
 
             # now find the patches for this image
             curr_odom = msg_data['odom_msg'][i]
