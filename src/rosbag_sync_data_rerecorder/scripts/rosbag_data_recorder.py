@@ -19,8 +19,8 @@ from scipy.spatial.transform import Rotation as R
 import subprocess
 
 PATCH_SIZE = 64
-PATCH_EPSILON = 0.2 * PATCH_SIZE * PATCH_SIZE
-ACTUATION_LATENCY = 0.1
+PATCH_EPSILON = 0.5 * PATCH_SIZE * PATCH_SIZE
+ACTUATION_LATENCY = 0.2
 
 class ListenRecordData:
     def __init__(self, config_path, save_data_path, rosbag_play_process):
@@ -40,7 +40,7 @@ class ListenRecordData:
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
         joystick = message_filters.Subscriber('/joystick', Joy)
         vesc_drive = message_filters.Subscriber('/vesc_drive', TwistStamped)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu, vesc_drive], 20, 0.05, allow_headerless=True)
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu, vesc_drive], 10, 0.1, allow_headerless=True)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
         self.counter = 0
@@ -304,7 +304,7 @@ class ListenRecordData:
             (patch_corners_prev_frame[3] * 200).astype(np.int),
         ]
         
-        CENTER = np.array((720, 640))
+        CENTER = np.array((640, 720))
         patch_corners_image_frame = [
             CENTER + np.array((-scaled_patch_corners[0][1], -scaled_patch_corners[0][0])),
             CENTER + np.array((-scaled_patch_corners[1][1], -scaled_patch_corners[1][0])),

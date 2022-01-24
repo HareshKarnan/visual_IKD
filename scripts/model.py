@@ -41,8 +41,8 @@ class VisualIKDNet(nn.Module):
         )
 
         self.ikdmodel = nn.Sequential(
-            # nn.Linear(input_size - (200 * 3 + 60 * 3) + 16 + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
-            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16 + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            # nn.Linear(input_size - (200 * 3 + 60 * 3) + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
@@ -52,9 +52,9 @@ class VisualIKDNet(nn.Module):
         visual_embedding = self.visual_encoder(image)
         unobserved_indices = torch.nonzero(torch.logical_not(patch_observed)).squeeze()
         visual_embedding[unobserved_indices] = torch.zeros((1, 16)).cuda()
-        # imu_embedding = self.imu_net(torch.cat((accel, gyro), dim=1))
-        # return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
-        return self.ikdmodel(torch.cat((odom, visual_embedding), dim=1))
+        imu_embedding = self.imu_net(torch.cat((accel, gyro), dim=1))
+        return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
+        # return self.ikdmodel(torch.cat((odom, visual_embedding), dim=1))
 
 
 class SimpleIKDNet(nn.Module):

@@ -138,11 +138,14 @@ class IKDNode(object):
         print('time taken in seconds :: ', time.time() - start_time)
 
         print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
-        print("Output Nav Command : ", v, w)
+        # print("Output Nav Command : ", v, w)
+        print("Output Nav Command : ", msg.velocity + v, msg.velocity*msg.curvature + w)
 
         # populate with v and w
-        self.nav_cmd.velocity = v + 0.75 * msg.velocity
-        self.nav_cmd.curvature = w/v + 0.75 * msg.curvature
+        # self.nav_cmd.velocity = msg.velocity + 0.5 * v
+        # self.nav_cmd.curvature = msg.curvature + 0.5 * w/v
+        self.nav_cmd.velocity = v
+        self.nav_cmd.curvature = w/v
 
         self.nav_publisher.publish(self.nav_cmd)
 

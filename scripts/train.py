@@ -125,7 +125,8 @@ class ProcessedBagDataset(Dataset):
         # cv2.imshow('disp', patch)
         # cv2.waitKey(0)
 
-        return odom_val, joystick-odom_val[-2:], accel, gyro, patch, patches_found
+        # return odom_val, joystick-odom_val[-2:], accel, gyro, patch, patches_found
+        return odom_val, joystick, accel, gyro, patch, patches_found
 
 class IKDDataModule(pl.LightningDataModule):
     def __init__(self, data_dir, train_dataset_names, val_dataset_names, batch_size, history_len):
@@ -179,9 +180,9 @@ if __name__ == '__main__':
     model = IKDModel(input_size=3*200 + 60*3 + (3 + 2), # odom_1sec_history + odom_curr + odom_next
                      output_size=2,
                      hidden_size=args.hidden_size,
-                     use_vision=args.use_vision).to(device)
+                     use_vision=args.use_vision).cuda()
 
-    model = model.to(device)
+    model = model.cuda()
     dm = IKDDataModule(args.data_dir, args.train_dataset_names, args.val_dataset_names, batch_size=args.batch_size, history_len=args.history_len)
 
     early_stopping_cb = EarlyStopping(monitor='val_loss', mode='min', min_delta=0.00, patience=100)
@@ -190,16 +191,8 @@ if __name__ == '__main__':
                                           filename=datetime.now().strftime("%d-%m-%Y-%H-%M-%S"),
                                           monitor='val_loss', verbose=True)
 
-    gpu_ids = [0]
-    if args.num_gpus==2:
-        gpu_ids = [1, 2]
-    elif args.num_gpus==4:
-        gpu_ids = [0, 1, 2, 3]
-    elif args.num_gpus==3:
-        gpu_ids = [0, 1, 2]
-
     print("Training model...")
-    trainer = pl.Trainer(gpus=gpu_ids,
+    trainer = pl.Trainer(gpus=list(np.arange(args.num_gpus)),
                          max_epochs=args.max_epochs,
                          callbacks=[early_stopping_cb, model_checkpoint_cb],
                          log_every_n_steps=10,
