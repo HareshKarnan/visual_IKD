@@ -298,10 +298,10 @@ class ListenRecordData:
             inv_pos_transform @ patch_corners[3],
         ]
         scaled_patch_corners = [
-            (patch_corners_prev_frame[0] * 200).astype(np.int),
-            (patch_corners_prev_frame[1] * 200).astype(np.int),
-            (patch_corners_prev_frame[2] * 200).astype(np.int),
-            (patch_corners_prev_frame[3] * 200).astype(np.int),
+            (patch_corners_prev_frame[0] * 170).astype(np.int),
+            (patch_corners_prev_frame[1] * 170).astype(np.int),
+            (patch_corners_prev_frame[2] * 170).astype(np.int),
+            (patch_corners_prev_frame[3] * 170).astype(np.int),
         ]
         
         CENTER = np.array((640, 720))
