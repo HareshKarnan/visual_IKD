@@ -1,7 +1,6 @@
 import torch
 torch.backends.cudnn.benchmark = True
 import os
-import sys
 from model import VisualIKDNet, SimpleIKDNet
 from arguments import get_args
 import pickle
@@ -100,12 +99,12 @@ class ProcessedBagDataset(Dataset):
         # self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
 
     def __len__(self):
-        return max(self.data['odom'].shape[0], 0)
+        return max(self.data['odom'].shape[0]-6, 0)
 
     def __getitem__(self, idx):
         # history of odoms + next state
         odom_curr = self.data['odom'][idx][:3]
-        odom_next = self.data['odom'][idx][-3:]
+        odom_next = self.data['odom'][idx+5][:3]
 
         odom_val = np.hstack((odom_curr,
                               odom_next[0],

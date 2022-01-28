@@ -7,7 +7,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 
-dataset_path = '/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/sample_data/'
+dataset_path = '/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train1_data/'
 pickle_file_paths = glob.glob(dataset_path + '/*.pkl')
 
 print(pickle_file_paths)
@@ -35,16 +35,26 @@ for pickle_file in tqdm(pickle_file_paths):
 	data['odom'] = np.array(data['odom'])
 
 
+
 	plt.subplot(2, 1, 1)
 	# data['joystick'][:, 0] = savgol_filter(data['joystick'][:, 0], 19, 3)
-	plt.plot(np.arange(len(data['joystick'][:, 0])), data['joystick'][:, 0])
-	plt.plot(np.arange(len(data['joystick'][:, 0])), savgol_filter(data['joystick'][:, 0], 19, 3), 'r')
+	plt.plot(np.arange(len(data['joystick'][:-5, 0])), data['joystick'][:-5, 0])
+	# plt.plot(np.arange(len(data['joystick'][:, 0])), savgol_filter(data['joystick'][:, 0], 19, 3), 'r')
 	# plt.plot(np.arange(len(data['vescdrive'][:, 0])), data['vescdrive'][:, 0])
+	plt.plot(np.arange(len(data['odom'][5:, 0])), data['odom'][5:, 0])
+	plt.xlim(0, 1000)
+
 	plt.subplot(2, 1, 2)
-	plt.plot(np.arange(len(data['joystick'][:, 1])), data['joystick'][:, 1])
-	plt.plot(np.arange(len(data['joystick'][:, 1])), savgol_filter(data['joystick'][:, 1], 19, 3), 'r')
+	plt.plot(np.arange(len(data['joystick'][:-5, 1])), data['joystick'][:-5, 1])
+	# plt.plot(np.arange(len(data['joystick'][:, 1])), savgol_filter(data['joystick'][:, 1], 19, 3), 'r')
 	# plt.plot(np.arange(len(data['vescdrive'][:, 1])), data['vescdrive'][:, 1])
+	plt.plot(np.arange(len(data['odom'][5:, 0])), data['odom'][5:, 2])
+
+	plt.xlim(0, 1000)
 	plt.show()
+
+
+
 	# data['odom'][:, 0] = np.sqrt(data['odom'][:, 3] ** 2 + data['odom'][:, 4] ** 2)
 
 	# plt.figure(figsize=(20, 10))

@@ -20,7 +20,7 @@ import subprocess
 
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.5 * PATCH_SIZE * PATCH_SIZE
-ACTUATION_LATENCY = 0.2
+ACTUATION_LATENCY = 0.25
 
 class ListenRecordData:
     def __init__(self, config_path, save_data_path, rosbag_play_process):
