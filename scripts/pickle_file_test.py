@@ -30,15 +30,9 @@ for pickle_file in tqdm(pickle_file_paths):
 	# 	print('odom shape : ', data['odom'][i].shape)
 
 	print(len(data['joystick']))
-	print(len(data['vescdrive']))
 
 	data['joystick'] = np.array(data['joystick'])
-	data['vescdrive'] = np.array(data['vescdrive'])
 	data['odom'] = np.array(data['odom'])
-
-	print(len(data['odom']))
-
-
 
 
 	plt.subplot(2, 1, 1)

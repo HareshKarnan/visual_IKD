@@ -17,6 +17,7 @@ from termcolor import cprint
 parser = argparse.ArgumentParser()
 parser.add_argument('--loop', action='store_true')
 parser.add_argument('--waypoints', type=str, default='waypoints.yaml')
+parser.add_argument('--resample_number', type=int, default=10)
 
 args = parser.parse_args()
 
@@ -48,9 +49,9 @@ def resample_waypoints(waypoints, factor):
 class WaypointNavigator():
 	WAYPOINT_THRESHOLD = 0.75
 
-	def __init__(self, waypoints, visualize=False):
+	def __init__(self, waypoints, visualize=False, resample_num=20):
 		self.waypoints = waypoints
-		self.waypoints = resample_waypoints(waypoints, 10)
+		self.waypoints = resample_waypoints(waypoints, resample_num)
 		print('total waypoints :: ', len(self.waypoints))
 		self.visualize = visualize
 
@@ -119,7 +120,7 @@ class WaypointNavigator():
 def setup_ros_node():
 	rospy.init_node('waypoint_navigation')
 
-	waypoint_nav = WaypointNavigator(waypoints)
+	waypoint_nav = WaypointNavigator(waypoints, resample_num=args.resample_number)
 	time.sleep(1)
 	waypoint_nav.send_nav_command()
 	rospy.spin()

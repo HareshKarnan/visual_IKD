@@ -1,9 +1,9 @@
-normal_speed: 2.0
-turbo_speed: 10.0
+normal_speed: 2.5
+turbo_speed: 4.0
 accel_limit: 10.0
 maxTurnRate: 0.25
 commandInterval: 0.05
-speed_to_erpm_gain: -4258
+speed_to_erpm_gain: -5133
 speed_to_erpm_offset: 180.0
 erpm_speed_limit: 22000
 steering_to_servo_gain: -1.8
