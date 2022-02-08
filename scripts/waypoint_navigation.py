@@ -15,7 +15,7 @@ from amrl_msgs.msg import Localization2DMsg
 from termcolor import cprint
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--loop', action='store_true')
+parser.add_argument('--no_loop', action='store_true')
 parser.add_argument('--waypoints', type=str, default='waypoints.yaml')
 parser.add_argument('--resample_number', type=int, default=10)
 
@@ -36,7 +36,6 @@ def load_waypoints(waypoint_path):
 with open(args.waypoints) as f:
 	waypoints = yaml.load(f)
 
-
 # print('waypoints : ', waypoints)
 
 def resample_waypoints(waypoints, factor):
@@ -49,7 +48,7 @@ def resample_waypoints(waypoints, factor):
 class WaypointNavigator():
 	WAYPOINT_THRESHOLD = 0.75
 
-	def __init__(self, waypoints, visualize=False, resample_num=20):
+	def __init__(self, waypoints, visualize=False, resample_num=5):
 		self.waypoints = waypoints
 		self.waypoints = resample_waypoints(waypoints, resample_num)
 		print('total waypoints :: ', len(self.waypoints))
@@ -65,7 +64,7 @@ class WaypointNavigator():
 
 	def get_target_waypoint(self):
 		if (self.current_waypoint == len(self.waypoints)):
-			if (args.loop):
+			if (not args.no_loop):
 				print("Circuit Complete, restarting...")
 				# find the closest waypoint to the current location
 				self.current_waypoint = self.get_closest_waypoint() + 1
@@ -119,7 +118,6 @@ class WaypointNavigator():
 
 def setup_ros_node():
 	rospy.init_node('waypoint_navigation')
-
 	waypoint_nav = WaypointNavigator(waypoints, resample_num=args.resample_number)
 	time.sleep(1)
 	waypoint_nav.send_nav_command()

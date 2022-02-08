@@ -58,7 +58,8 @@ def callback(imu, image):
 
     # img = cv2.resize(img, (640, 360))
     # output = cv2.resize(output, (640, 360))
-    cv2.imshow('disp', np.hstack((img, output)))
+    # cv2.imshow('disp', np.hstack((img, output)))
+    cv2.imshow('disp', output)
     cv2.waitKey(1)
 
 def listener():

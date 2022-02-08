@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import roslib
+roslib.load_manifest('amrl_msgs')
 import os.path
 import copy
 from logging import root
@@ -17,6 +19,7 @@ import yaml
 from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
 import subprocess
+from amrl_msgs.msg import VescStateStamped
 
 PATCH_SIZE = 64
 PATCH_EPSILON = 0.5 * PATCH_SIZE * PATCH_SIZE
@@ -39,15 +42,15 @@ class ListenRecordData:
         vectornavimu = message_filters.Subscriber("/vectornav/IMU", Imu)
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
         joystick = message_filters.Subscriber('/joystick', Joy)
-        vesc_drive = message_filters.Subscriber('/vesc_drive', TwistStamped)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu, vesc_drive], 10, 0.1, allow_headerless=True)
+        # vesc_drive = message_filters.Subscriber('/vesc_drive', TwistStamped)
+        sensor_core = message_filters.Subscriber('/sensors/core', VescStateStamped)
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu, sensor_core], 10, 0.1, allow_headerless=True)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
         self.counter = 0
 
         # subscribe to odom topic to record the last 1 second of odom data
         rospy.Subscriber('/camera/odom/sample', Odometry, self.odom_callback) # 200hz
-        # subscribe to accel and gyro topic to record the last 1 second of imu data
         rospy.Subscriber('/camera/accel/sample', Imu, self.accel_callback) # 60hz
         rospy.Subscriber('/camera/gyro/sample', Imu, self.gyro_callback) # 60hz
 
@@ -61,7 +64,8 @@ class ListenRecordData:
             'accel_msg': [],
             'gyro_msg': [],
             'vectornav': [],
-            'vesc_drive_msg': [],
+            # 'vesc_drive_msg': [],
+            'sensor_core_msg': []
         }
 
         self.open_thread_lists = []
@@ -70,7 +74,7 @@ class ListenRecordData:
         self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
         self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
 
-    def callback(self, image, odom, joystick, vectornavimu, vesc_drive):
+    def callback(self, image, odom, joystick, vectornavimu, sensor_core):
         print('Received messages :: ', self.counter, ' ___')
     
         self.msg_data['image_msg'].append(image)
@@ -80,7 +84,8 @@ class ListenRecordData:
         self.msg_data['odom_1sec_msg'].append(self.odom_msgs.flatten())
         self.msg_data['accel_msg'].append(self.accel_msgs.flatten())
         self.msg_data['gyro_msg'].append(self.gyro_msgs.flatten())
-        self.msg_data['vesc_drive_msg'].append(vesc_drive)
+        # self.msg_data['vesc_drive_msg'].append(vesc_drive)
+        self.msg_data['sensor_core_msg'].append(sensor_core)
         self.counter += 1
 
     def odom_callback(self, msg):
@@ -101,15 +106,23 @@ class ListenRecordData:
 
     def save_data(self, msg_data, batch_idx):
         data = {}
+
+        # valid or invalid data bool
+        data['vesc_faults'] = self.extract_vesc_faults(msg_data)
+
         # process joystick
         print('Processing joystick data')
         data['joystick'] = self.process_joystick_data(msg_data, self.config)
         del msg_data['joystick_msg']
 
+        # process front camera image
+        print('Processing front camera image')
+        data['front_cam_image'] = self.process_image_data(msg_data)
+
         # process vesc_drive
-        print('Processing vesc_drive data')
-        data['vescdrive'] = self.process_vesc_drive_data(msg_data)
-        del msg_data['vesc_drive_msg']
+        # print('Processing vesc_drive data')
+        # data['vescdrive'] = self.process_vesc_drive_data(msg_data)
+        # del msg_data['vesc_drive_msg']
 
         # process odom_1_sec data
         print('Processing odom_1_sec data')
@@ -125,10 +138,11 @@ class ListenRecordData:
         data['odom'] = self.process_odom_vel_data(msg_data)
         data['vectornav'] = msg_data['vectornav']
         data['joystick'] = data['joystick'][:len(data['odom'])]
-        data['vescdrive'] = data['vescdrive'][:len(data['odom'])]
+        # data['vescdrive'] = data['vescdrive'][:len(data['odom'])]
         data['odom_1sec_msg'] = data['odom_1sec_msg'][:len(data['odom'])]
         data['accel_msg'] = data['accel_msg'][:len(data['odom'])]
         data['gyro_msg'] = data['gyro_msg'][:len(data['odom'])]
+        data['front_cam_image'] = data['front_cam_image'][:len(data['odom'])]
 
         data['patches'], data['patches_found'] = self.process_bev_image_and_patches(msg_data)
         data['patches'].pop(len(data['patches'].keys())-1)
@@ -138,17 +152,18 @@ class ListenRecordData:
         del msg_data['odom_msg']
         del msg_data['vectornav']
 
-        print("truncating data")
-        for i in range(len(data['odom'])-1, -1, -1):
-            if (i not in data['patches']):
-                data['joystick'].pop(i)
-                data['odom'].pop(i)
-                data['odom_1sec_msg'].pop(i)
-                data['accel_msg'].pop(i)
-                data['gyro_msg'].pop(i)
-                data['vectornav'].pop(i)
-                data['vescdrive'].pop(i)
-                print("removed index", i)
+        # print("truncating data")
+        # for i in range(len(data['odom'])-1, -1, -1):
+        #     if (i not in data['patches']):
+        #         data['joystick'].pop(i)
+        #         data['odom'].pop(i)
+        #         data['odom_1sec_msg'].pop(i)
+        #         data['accel_msg'].pop(i)
+        #         data['gyro_msg'].pop(i)
+        #         data['vectornav'].pop(i)
+        #         data['vescdrive'].pop(i)
+        #         data['front_cam_image'].pop(i)
+        #         print("removed index", i)
 
         assert(len(data['odom']) == len(data['patches'].keys()))
         patches = []
@@ -177,12 +192,29 @@ class ListenRecordData:
             pickle.dump(data, open(path, 'wb'))
             cprint('Saved data successfully ', 'yellow', attrs=['blink'])
 
-    def process_vesc_drive_data(self, msg_data):
-        # process vesc_drive
-        vesc_drive = []
-        for i in range(len(msg_data['vesc_drive_msg'])):
-            vesc_drive.append([msg_data['vesc_drive_msg'][i].twist.linear.x, msg_data['vesc_drive_msg'][i].twist.angular.z])
-        return vesc_drive
+    def extract_vesc_faults(self, msg_data):
+        faults = []
+        for i in range(len(msg_data['sensor_core_msg'])):
+            faults.append(msg_data['sensor_core_msg'][i].state.fault_code)
+        return faults
+
+    def process_image_data(self, msg_data):
+        front_cam_images = []
+        for i in range(len(msg_data['image_msg'])):
+            img = np.fromstring(msg_data['image_msg'][i].data, np.uint8)
+            img = cv2.imdecode(img, cv2.IMREAD_COLOR)
+            # reshape image to 128x128
+            img = cv2.resize(img, (128, 128), interpolation=cv2.INTER_AREA)
+            front_cam_images.append(img)
+        return front_cam_images
+
+
+    # def process_vesc_drive_data(self, msg_data):
+    #     # process vesc_drive
+    #     vesc_drive = []
+    #     for i in range(len(msg_data['vesc_drive_msg'])):
+    #         vesc_drive.append([msg_data['vesc_drive_msg'][i].twist.linear.x, msg_data['vesc_drive_msg'][i].twist.angular.z])
+    #     return vesc_drive
 
 
     def process_bev_image_and_patches(self, msg_data):
@@ -298,10 +330,10 @@ class ListenRecordData:
             inv_pos_transform @ patch_corners[3],
         ]
         scaled_patch_corners = [
-            (patch_corners_prev_frame[0] * 170).astype(np.int),
-            (patch_corners_prev_frame[1] * 170).astype(np.int),
-            (patch_corners_prev_frame[2] * 170).astype(np.int),
-            (patch_corners_prev_frame[3] * 170).astype(np.int),
+            (patch_corners_prev_frame[0] * 206).astype(np.int),
+            (patch_corners_prev_frame[1] * 206).astype(np.int),
+            (patch_corners_prev_frame[2] * 206).astype(np.int),
+            (patch_corners_prev_frame[3] * 206).astype(np.int),
         ]
         
         CENTER = np.array((640, 720))

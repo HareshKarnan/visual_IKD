@@ -4,7 +4,7 @@ def get_args():
 	parser = argparse.ArgumentParser(description='rosbag parser')
 	parser.add_argument('--max_epochs', type=int, default=1000)
 	parser.add_argument('--history_len', type=int, default=1)
-	parser.add_argument('--batch_size', type=int, default=32)
+	parser.add_argument('--batch_size', type=int, default=128)
 	parser.add_argument('--num_gpus', type=int, default=1)
 	parser.add_argument('--hidden_size', type=int, default=32)
 	parser.add_argument('--use_vision', action='store_true', default=False)
@@ -16,18 +16,8 @@ def get_args():
 																			   'train7_data',
 																			   'train9_data',
 																			   'train10_data',
-																			   'train11_data',
-																			   'train12_data',
-																			   'train13_data',
-																			   'train15_data',
-																			   'train17_data',
-																			   'train19_data'])
+																			   'train11_data'])
 	parser.add_argument('--val_dataset_names', type=str, nargs='+', default=['train2_data',
 																			 'train4_data',
-																			 'train6_data',
-																			 'train8_data',
-																			 'train14_data',
-																			 'train16_data',
-																			 'train18_data',
-																			 'train20_data'])
+																			 'train8_data'])
 	return parser.parse_args()

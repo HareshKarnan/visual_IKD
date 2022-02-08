@@ -34,6 +34,9 @@ for pickle_file in tqdm(pickle_file_paths):
 	data['joystick'] = np.array(data['joystick'])
 	data['odom'] = np.array(data['odom'])
 
+	# cv2.imshow('disp', data['front_cam_image'][0])
+	# cv2.waitKey(0)
+
 
 
 	plt.subplot(2, 1, 1)

@@ -24,7 +24,7 @@ if __name__ == '__main__':
     model = model.to(device)
     model.eval()
 
-    data = pickle.load(open('/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train1_data/data_1.pkl', 'rb'))
+    data = pickle.load(open('/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/oldbags/train1_data/data_1.pkl', 'rb'))
 
     # class ProcessedBagDataset(Dataset):
     #     def __init__(self, data, history_len):

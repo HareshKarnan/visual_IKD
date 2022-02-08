@@ -140,6 +140,7 @@ class IKDDataModule(pl.LightningDataModule):
         train_datasets = []
         for dataset_name in self.train_dataset_names:
             data_files = os.listdir(os.path.join(data_dir, dataset_name))
+            data_files = [file for file in data_files if file.endswith('data_1.pkl')]
             for file in data_files:
                 data = pickle.load(open(os.path.join(data_dir, dataset_name, file), 'rb'))
                 dataset = ProcessedBagDataset(data, history_len)
@@ -153,6 +154,7 @@ class IKDDataModule(pl.LightningDataModule):
         val_datasets = []
         for dataset_name in self.val_dataset_names:
             data_files = os.listdir(os.path.join(data_dir, dataset_name))
+            data_files = [file for file in data_files if file.endswith('data_1.pkl')]
             for file in data_files:
                 data = pickle.load(open(os.path.join(data_dir, dataset_name, file), 'rb'))
                 dataset = ProcessedBagDataset(data, history_len)

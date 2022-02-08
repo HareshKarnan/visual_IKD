@@ -1,14 +1,17 @@
 import argparse
 import pickle
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from termcolor import cprint
 import threading
+from sklearn.cluster import KMeans
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags')
-parser.add_argument('--dataset_names', nargs='+', default=['train1'])
+parser.add_argument('--dataset_names', nargs='+', default=['train2'])
 parser.add_argument('--visualize', action='store_true', default=False)
 parser.add_argument('--num_threads', type=int, default=10)
 args = parser.parse_args()
@@ -152,122 +155,51 @@ def similar_kd_response(kd_response_1, kd_response_2):
 	# response was same then..
 	return True
 
-def process_datset(dataset):
-	data_file = os.path.join(args.data_dir, dataset + '_data', 'data_1.pkl')
-	data = pickle.load(open(data_file, 'rb'))
-	data_len = len(data['odom'])
-	print('\nprocessing file : ', data_file, '\n')
-
-	valid_data = {}
-	for i in tqdm(range(data_len - 7)):
-		# if there were no patch data, skip
-		if not data['patches_found'][i]: continue
-
-		positive_patch_idx, positive_patch_weight, distant_patch_idx, distant_patch_weight = find_positive_and_negative_indices_v2(
-			i, data)
-
-		# only use this data sample if it has atleast 1 distant patch and 1 positive patch
-		if len(distant_patch_idx) < 1 or len(positive_patch_idx) < 1: continue
-
-		# print('len positive : ', len(positive_patch_idx))
-		# print('len distant : ', len(distant_patch_idx))
-		# input('press enter to continue...')
-
-		# valid anchor and negative patch found !
-		valid_data[i] = {'p_idx': positive_patch_idx,
-						 'p_weight': positive_patch_weight,
-						 'n_idx': distant_patch_idx,
-						 'n_weight': distant_patch_weight}
-
-		if args.visualize:
-			patches = data['patches'][i]
-			cv2.imshow('anchor', patches[0])
-			print('anchor properties -- ')
-			print('curr odom', data['odom'][i + 4][:3])
-			print('joystick', data['joystick'][i])
-			print('next odom', data['odom'][i + 5][:3])
-
-			cv2.imshow('neg', data['patches'][distant_patch_idx[0]][0])
-			print('neg properties -- ')
-			print('curr odom', data['odom'][distant_patch_idx[0] + 4][:3])
-			print('joystick', data['joystick'][distant_patch_idx[0]])
-			print('next odom', data['odom'][distant_patch_idx[0] + 5][:3])
-
-			cv2.imshow('pos', data['patches'][positive_patch_idx[0]][0])
-			print('pos properties -- ')
-			print('curr odom', data['odom'][positive_patch_idx[0] + 4][:3])
-			print('joystick', data['joystick'][positive_patch_idx[0]])
-			print('next odom', data['odom'][positive_patch_idx[0] + 5][:3])
-
-			# numpy checks
-			anchor_curr_odom = np.asarray(data['odom'][i + 4])[:3]
-			anchor_next_odom = np.asarray(data['odom'][i + 5])[:3]
-			positive_odom_curr = np.asarray(data['odom'][positive_patch_idx[0] + 4])[:3]
-			positive_odom_next = np.asarray(data['odom'][positive_patch_idx[0] + 5])[:3]
-			negative_odom_curr = np.asarray(data['odom'][distant_patch_idx[0] + 4])[:3]
-			negative_odom_next = np.asarray(data['odom'][distant_patch_idx[0] + 5])[:3]
-			print('positive : ', np.allclose(positive_odom_curr, anchor_curr_odom, 0.1))
-			print('negative : ', np.allclose(negative_odom_curr, anchor_curr_odom, 0.1))
-			print('positive : ', np.allclose(positive_odom_next, anchor_next_odom, 0.02))
-			print('negative : ', np.allclose(negative_odom_next, anchor_next_odom, 0.02))
-			cv2.waitKey(0)
-
-	# remove negative patches that are not an anchor
-	cprint('\nRemoving negatives that are not an anchor !\n', 'green', attrs=['bold'])
-	anchors = list(valid_data.keys())
-	for valid_anchor in anchors:
-		valid_negatives, valid_negatives_weights = [], []
-		all_negatives = valid_data[valid_anchor]['n_idx']
-		all_negatives_weights = valid_data[valid_anchor]['n_weight']
-
-		for i, val in enumerate(all_negatives):
-			if val in anchors:
-				valid_negatives.append(all_negatives[i])
-				valid_negatives_weights.append(all_negatives_weights[i])
-
-		valid_data[valid_anchor]['n_idx'] = valid_negatives
-		valid_data[valid_anchor]['n_weight'] = valid_negatives_weights
-		if len(valid_negatives) == 0:
-			raise Exception("Removed all negatives for this sample!! :(")
-
-	# order the positives and negatives based on their weights
-	cprint('\nOrdering positives and negatives based on their weights !\n', 'green', attrs=['bold'])
-	for valid_anchor in anchors:
-		positive_idx = valid_data[valid_anchor]['p_idx']
-		negative_idx = valid_data[valid_anchor]['n_idx']
-
-		positive_weight = valid_data[valid_anchor]['p_weight']
-		negative_weight = valid_data[valid_anchor]['n_weight']
-
-		valid_data[valid_anchor]['p_idx'] = [positive_idx[i] for i in np.argsort(positive_weight)]
-		valid_data[valid_anchor]['n_idx'] = [negative_idx[i] for i in np.argsort(negative_weight)]
-		valid_data[valid_anchor]['p_weight'] = np.sort(positive_weight)
-		valid_data[valid_anchor]['n_weight'] = np.sort(negative_weight)
-
-	# delete weight from anchor_data
-	# del valid_data[valid_anchor]['p_weight']
-	# del valid_data[valid_anchor]['n_weight']
-
-	print('total samples : ', data_len)
-	print('total valid samples : ', len(list(valid_data.keys())))
-	# save valid_data dictionary as a json file
-	pickle.dump(valid_data, open(data_file.replace('data_1.pkl', 'distant_indices_abs.pkl'), 'wb'))
-	cprint('Saved distant indices to file', 'green', attrs=['bold'])
-
-thread_list = []
-for dataset in tqdm(args.dataset_names):
-	if len(thread_list) < min_threads:
-		print('\nCreating thread for dataset : ', dataset)
-		t = threading.Thread(target=process_datset, args=(dataset,))
-		thread_list.append(t)
-		t.start()
 
 
-	# wait for all threads to complete
-	if len(thread_list) == min_threads:
-		for t in thread_list:
-			t.join()
-		thread_list = []
+if __name__ == '__main__':
+	for dataset in tqdm(args.dataset_names):
+		data_file = os.path.join(args.data_dir, dataset + '_data', 'data_1.pkl')
+		data = pickle.load(open(data_file, 'rb'))
+		data_len = len(data['odom'])
+		print('\nprocessing file : ', data_file, '\n')
+
+		valid_data = {}
+		data_indices, kd_response_list = [], []
+		for i in tqdm(range(data_len - 7)):
+			# if there were no patch data, skip
+			if not data['patches_found'][i]: continue
+
+			joystick = data['joystick'][i]
+			curr_odom = np.asarray(data['odom'][i + 4])[:3]
+			next_odom = np.asarray(data['odom'][i + 5])[:3]
+
+			kd_response = [joystick[0] - next_odom[0],
+						   joystick[1] - next_odom[2]]
+
+			data_indices.append(i)
+			kd_response_list.append(kd_response)
+
+	# now run kmeans clustering
+	print(i)
+
+	print(kd_response_list)
+	kd_response_list = np.asarray(kd_response_list)
+
+
+	# distortions = []
+	# for num_clusters in range(2, 50):
+	# 	kmeans = KMeans(n_clusters=num_clusters, random_state=0).fit(kd_response_list)
+	# 	distortions.append(kmeans.inertia_)
+	#
+	# plt.plot(np.asarray(range(2, 50)), np.asarray(distortions))
+	# plt.show()
+
+	plt.figure(figsize=(20, 20))
+	plt.scatter(kd_response_list[:, 0], kd_response_list[:, 1])
+	plt.xlim([-3, 3])
+	plt.ylim([-3, 3])
+	plt.show()
 
 
 

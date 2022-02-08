@@ -7,8 +7,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 
-dataset_path = '/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/train2_data/'
-pickle_file_paths = glob.glob(dataset_path + '/*.pkl')
+dataset_path = '/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/oldbags/train2_data/'
+pickle_file_paths = glob.glob(dataset_path + '/*data_1.pkl')
 
 print(pickle_file_paths)
 

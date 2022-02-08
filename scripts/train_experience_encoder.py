@@ -1,3 +1,5 @@
+import copy
+
 import torch
 import numpy as np
 import os
@@ -23,26 +25,25 @@ class VisualIMUEncoder(nn.Module):
 	def __init__(self):
 		super(VisualIMUEncoder, self).__init__()
 		self.visual_encoder = nn.Sequential(
-			nn.Conv2d(3, 16, kernel_size=3, stride=2),
-			nn.BatchNorm2d(16), nn.PReLU(),  # 31x31
+			nn.Conv2d(3, 16, kernel_size=3, stride=2), nn.ReLU(),  # 31x31
 			nn.MaxPool2d(kernel_size=3, stride=2),  # 15x15
-			nn.Conv2d(16, 32, kernel_size=3, stride=2),
-			nn.BatchNorm2d(32), nn.PReLU(),  # 7x7
+			nn.Conv2d(16, 32, kernel_size=3, stride=2), nn.ReLU(),  # 7x7
 			nn.MaxPool2d(kernel_size=3, stride=2),  # 3x3
 			nn.Flatten(),
-			nn.Linear(3 * 3 * 32, 64), nn.BatchNorm1d(64), nn.PReLU(),
-			nn.Linear(64, 32)
+			nn.Linear(3 * 3 * 32, 128), nn.ReLU(),
+			nn.Linear(128, 64)
 		)
 
 		self.imu_net = nn.Sequential(
-			nn.Linear(200 * 3 + 60 * 3, 128), nn.BatchNorm1d(128), nn.PReLU(),
-			nn.Linear(128, 64), nn.BatchNorm1d(64), nn.PReLU(),
-			nn.Linear(64, 16),
+			nn.Linear(200 * 3 + 60 * 3, 128), nn.ReLU(),
+			nn.Linear(128, 64), nn.ReLU(),
+			nn.Linear(64, 32),
 		)
 
 		self.imu_visual_net = nn.Sequential(
-			nn.Linear(32 + 16, 32), nn.BatchNorm1d(32), nn.PReLU(),
-			nn.Linear(32, 6),
+			nn.Linear(64 + 32, 64), nn.ReLU(), # 64 visual + 32 imu + 2 action
+			nn.Linear(64, 64), nn.ReLU(),
+			nn.Linear(64, 32),
 		)
 
 	def forward(self, visual_input, imu_input):
@@ -53,17 +54,24 @@ class VisualIMUEncoder(nn.Module):
 		return embedding
 
 class EncoderModel(pl.LightningModule):
-	def __init__(self, args):
+	def __init__(self, args=None, margin=0.2, save_hyperparam=False):
 		super(EncoderModel, self).__init__()
 		self.save_hyperparameters('args')
 		self.visual_imu_encoder_model = VisualIMUEncoder()
-		self.loss = nn.TripletMarginLoss(margin=1.0, swap=True)
+		self.loss = nn.TripletMarginLoss(margin=margin, swap=False, p=2)
+		# self.loss = self.softtripletloss
+
+	def softtripletloss(self, an_embedding, pos_embedding, neg_embedding):
+		d_ap = torch.sum((an_embedding - pos_embedding)**2, dim=1)
+		d_an = torch.sum((an_embedding - neg_embedding)**2, dim=1)
+		soft_triplet_loss = (torch.exp(d_ap) / (torch.exp(d_ap) + torch.exp(d_an)))**2
+		return soft_triplet_loss.mean()
 
 	def forward(self, patch, imu):
 		return self.visual_imu_encoder_model(patch, imu)
 
 	def training_step(self, batch, batch_idx):
-		anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu = batch
+		anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu, _, anchor_action, positive_action, negative_action = batch
 		an_embedding = self.forward(anchor_patch.float(), anchor_imu.float())
 		pos_embedding = self.forward(positive_patch.float(), positive_imu.float())
 		neg_embedding = self.forward(negative_patch.float(), negative_imu.float())
@@ -72,7 +80,7 @@ class EncoderModel(pl.LightningModule):
 		return loss
 
 	def validation_step(self, batch, batch_idx):
-		anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu = batch
+		anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu, _, anchor_action, positive_action, negative_action= batch
 		an_embedding = self.forward(anchor_patch.float(), anchor_imu.float())
 		pos_embedding = self.forward(positive_patch.float(), positive_imu.float())
 		neg_embedding = self.forward(negative_patch.float(), negative_imu.float())
@@ -80,42 +88,113 @@ class EncoderModel(pl.LightningModule):
 		self.log('val_loss', loss, prog_bar=True, logger=True)
 		return loss
 
+	@staticmethod
+	def write_metadata_on_image(img, odom_curr, joystick, odom_next):
+		img = cv2.putText(img, 'curr : ' + str(odom_curr), (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
+		img = cv2.putText(img, 'joy : ' + str(joystick), (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
+		img = cv2.putText(img, 'next : ' + str(odom_next), (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
+		return img
+
 	def on_validation_batch_start(self, batch, batch_idx, dataloader_idx):
-		if batch_idx==0:
+		if batch_idx==0 and self.current_epoch % 50==0:
 			with torch.no_grad():
-				anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu = batch
+				anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu, metadata, anchor_joystick, positive_joystick, negative_joystick = batch
 				an_embedding = self.forward(anchor_patch.float().cuda(), anchor_imu.float().cuda())
 				pos_embedding = self.forward(positive_patch.float().cuda(), positive_imu.float().cuda())
 				neg_embedding = self.forward(negative_patch.float().cuda(), negative_imu.float().cuda())
 
-			images = torch.cat([anchor_patch, positive_patch, negative_patch], dim=0)
-			embeddings = torch.cat([an_embedding, pos_embedding, neg_embedding], dim=0)
-			labels = ['P' for _ in range(2*an_embedding.shape[0])]
-			labels.extend(['N' for _ in range(neg_embedding.shape[0])])
+			# convert images to opencv format
+			anchor_patch = (anchor_patch.cpu().numpy().transpose(0, 2, 3, 1)*255.0).astype(np.uint8)
+			# positive_patch = positive_patch.cpu().numpy().transpose(0, 2, 3, 1)
+			# negative_patch = negative_patch.cpu().numpy().transpose(0, 2, 3, 1)
+			anchor_labelled = []
+			for i in range(anchor_patch.shape[0]):
+				img = cv2.cvtColor(np.asarray(anchor_patch[i]), cv2.COLOR_RGB2BGR)
+				img = cv2.resize(img, (128, 128))
 
-			self.logger.experiment.add_embedding(mat=embeddings, label_img=images,
-												 global_step=self.current_epoch, metadata=labels)
+				# write metadata on image
+				an_odom_curr = metadata['anchor_curr_odom'][i].numpy()[[0, 2]].round(2)
+				an_joystick = metadata['anchor_joystick'][i].numpy().round(2)
+				an_odom_next = metadata['anchor_next_odom'][i].numpy()[[0, 2]].round(2)
+
+				img = self.write_metadata_on_image(img, an_odom_curr, an_joystick, an_odom_next)
+
+				anchor_labelled.append(img)
+			anchor_patch = np.asarray(anchor_labelled).transpose(0, 3, 1, 2)
+			anchor_patch = torch.from_numpy(anchor_patch.astype(np.float32)/255.0).float()
+
+			# positive
+			positive_patch = (positive_patch.cpu().numpy().transpose(0, 2, 3, 1)*255.0).astype(np.uint8)
+			positive_labelled = []
+			for i in range(positive_patch.shape[0]):
+				img = cv2.cvtColor(np.asarray(positive_patch[i]), cv2.COLOR_RGB2BGR)
+				img = cv2.resize(img, (128, 128))
+
+				an_odom_curr = metadata['positive_curr_odom'][i].numpy()[[0, 2]].round(2)
+				an_joystick = metadata['positive_joystick'][i].numpy().round(2)
+				an_odom_next = metadata['positive_next_odom'][i].numpy()[[0, 2]].round(2)
+
+				# write metadata on image
+				img = self.write_metadata_on_image(img, an_odom_curr, an_joystick, an_odom_next)
+				positive_labelled.append(img)
+			positive_patch = np.asarray(positive_labelled).transpose(0, 3, 1, 2)
+			positive_patch = torch.from_numpy(positive_patch.astype(np.float32)/255.0).float()
+
+			# negative
+			negative_patch = (negative_patch.cpu().numpy().transpose(0, 2, 3, 1) * 255.0).astype(np.uint8)
+			negative_labelled = []
+			for i in range(negative_patch.shape[0]):
+				img = cv2.cvtColor(np.asarray(negative_patch[i]), cv2.COLOR_RGB2BGR)
+				img = cv2.resize(img, (128, 128))
+
+				an_odom_curr = metadata['negative_curr_odom'][i].numpy()[[0, 2]].round(2)
+				an_joystick = metadata['negative_joystick'][i].numpy().round(2)
+				an_odom_next = metadata['negative_next_odom'][i].numpy()[[0, 2]].round(2)
+
+				# write metadata on image
+				img = self.write_metadata_on_image(img, an_odom_curr, an_joystick, an_odom_next)
+				negative_labelled.append(img)
+			negative_patch = np.asarray(negative_labelled).transpose(0, 3, 1, 2)
+			negative_patch = torch.from_numpy(negative_patch.astype(np.float32) / 255.0).float()
+
+			images = torch.cat([anchor_patch, positive_patch, negative_patch], dim=0)
+			# images = torch.flip(images, [1])# flip along RGB axis
+
+			embeddings = torch.cat([an_embedding, pos_embedding, neg_embedding], dim=0)
+
+			self.logger.experiment.add_embedding(mat=embeddings,
+												 label_img=images,
+												 global_step=self.current_epoch)
 
 
 	def test_step(self, batch, batch_idx):
 		return self.validation_step(batch, batch_idx)
 
 	def configure_optimizers(self):
-		return torch.optim.AdamW(self.visual_imu_encoder_model.parameters(), lr=3e-5, weight_decay=1e-6)
+		return torch.optim.AdamW(self.visual_imu_encoder_model.parameters(), lr=3e-4, weight_decay=1e-5)
 
 class TripletDataset(Dataset):
 	def __init__(self, data, data_distant_indices):
 		self.data = data
 		self.data_distant_indices = data_distant_indices
 
+		# invert the weights for the positives (so we sample the easy positives more)
+		for key in list(self.data_distant_indices.keys()):
+			self.data_distant_indices[key]['p_weight'] = [1./float(val) for val in self.data_distant_indices[key]['p_weight']]
+
 	def __len__(self):
 		return len(list(self.data_distant_indices.keys()))
 
 	def __getitem__(self, idx):
 		anchor_idx = list(self.data_distant_indices.keys())[idx]
-		positive_idxs = self.data_distant_indices[anchor_idx]['n_idx']
-		negative_idxs = self.data_distant_indices[anchor_idx]['p_idx']
-		positive_idx, negative_idx = np.random.choice(positive_idxs), np.random.choice(negative_idxs)
+		positive_idxs = self.data_distant_indices[anchor_idx]['p_idx']
+		negative_idxs = self.data_distant_indices[anchor_idx]['n_idx']
+		# positive_idx, negative_idx = np.random.choice(positive_idxs), np.random.choice(negative_idxs)
+
+		# sample an easy positive
+		positive_idx = random.choices(positive_idxs, self.data_distant_indices[anchor_idx]['p_weight'], k=1)[0]
+		# sample a hard negative
+		negative_idx = random.choices(negative_idxs, self.data_distant_indices[anchor_idx]['n_weight'], k=1)[0]
 
 		anchor_patch = random.choice(self.data['patches'][anchor_idx]).transpose(2, 0, 1).astype(np.float32)/255.0
 		positive_patch = random.choice(self.data['patches'][positive_idx]).transpose(2, 0, 1).astype(np.float32)/255.0
@@ -135,7 +214,25 @@ class TripletDataset(Dataset):
 		negative_gyro = np.asarray(self.data['gyro_msg'][anchor_idx])
 		negative_imu = np.concatenate((negative_accel, negative_gyro))
 
-		return anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu
+		anchor_joystick = np.asarray(self.data['joystick'][anchor_idx])
+		positive_joystick = np.asarray(self.data['joystick'][positive_idx])
+		negative_joystick = np.asarray(self.data['joystick'][negative_idx])
+
+		metadata = {
+			'anchor_curr_odom': np.asarray(self.data['odom'][anchor_idx+4][:3]),
+			'anchor_joystick': np.asarray(self.data['joystick'][anchor_idx]),
+			'anchor_next_odom': np.asarray(self.data['odom'][anchor_idx+5][:3]),
+
+			'positive_curr_odom': np.asarray(self.data['odom'][positive_idx+4][:3]),
+			'positive_joystick': np.asarray(self.data['joystick'][positive_idx]),
+			'positive_next_odom': np.asarray(self.data['odom'][positive_idx+5][:3]),
+
+			'negative_curr_odom': np.asarray(self.data['odom'][negative_idx + 4][:3]),
+			'negative_joystick': np.asarray(self.data['joystick'][negative_idx]),
+			'negative_next_odom': np.asarray(self.data['odom'][negative_idx + 5][:3]),
+		}
+
+		return anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu, metadata, anchor_joystick, positive_joystick, negative_joystick
 
 class TripletDataModule(pl.LightningDataModule):
 	def __init__(self, data_dir, train_dataset_names, val_dataset_names, batch_size):
@@ -153,7 +250,7 @@ class TripletDataModule(pl.LightningDataModule):
 			data_files = [file for file in data_files if file.endswith('data_1.pkl')]
 			for file in data_files:
 				data = pickle.load(open(os.path.join(data_dir, dataset_name, file), 'rb'))
-				data_distant_indices = pickle.load(open(os.path.join(data_dir, dataset_name, file.replace('data_1.pkl', 'distant_indices.pkl')), 'rb'))
+				data_distant_indices = pickle.load(open(os.path.join(data_dir, dataset_name, file.replace('data_1.pkl', 'distant_indices_abs.pkl')), 'rb'))
 				dataset = TripletDataset(data, data_distant_indices)
 				if len(dataset) > 0:
 					train_datasets.append(dataset)
@@ -187,18 +284,19 @@ if __name__ == '__main__':
 	# setup argparse
 	parser = argparse.ArgumentParser(description='Train Experience Encoder')
 	parser.add_argument('--data_dir', type=str, default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags', help='path to data directory')
-	parser.add_argument('--batch_size', type=int, default=128, help='batch size')
+	parser.add_argument('--batch_size', type=int, default=256, help='batch size')
 	parser.add_argument('--num_gpus', type=int, default=1, help='Number of GPUs to use')
-	parser.add_argument('--max_epochs', type=int, default=1000, help='Number of epochs to train for')
-	parser.add_argument('--train_dataset_names', nargs='+', default=['train1_data'])
-	parser.add_argument('--val_dataset_names', nargs='+', default=['train2_data'])
+	parser.add_argument('--margin', type=float, default=1.0, help='Number of GPUs to use')
+	parser.add_argument('--max_epochs', type=int, default=100000, help='Number of epochs to train for')
+	parser.add_argument('--train_dataset_names', nargs='+', default=['train1_data','train3_data','train4_data','train6_data','train7_data', 'train8_data', 'train10_data'])
+	parser.add_argument('--val_dataset_names', nargs='+', default=['train2_data','train5_data','train9_data'])
 	args = parser.parse_args()
 
 	dm = TripletDataModule(args.data_dir, args.train_dataset_names, args.val_dataset_names, args.batch_size)
-	model = EncoderModel(args)
+	model = EncoderModel(args, margin=args.margin)
 	model = model.cuda()
 
-	early_stopping_cb = EarlyStopping(monitor='val_loss', mode='min', min_delta=0.00, patience=100)
+	early_stopping_cb = EarlyStopping(monitor='val_loss', mode='min', min_delta=0.00, patience=1000)
 	model_checkpoint_cb = ModelCheckpoint(dirpath='models/encoder/',
 										  filename=datetime.now().strftime("%d-%m-%Y-%H-%M-%S"),
 										  monitor='val_loss', verbose=True)
