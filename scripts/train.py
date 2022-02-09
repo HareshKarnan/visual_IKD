@@ -40,10 +40,10 @@ class IKDModel(pl.LightningModule):
     def forward(self, accel, gyro, odom, bevimage=None, patch_observed=None, joystick_history=None):
         if self.use_vision:
             # return self.ikd_model(odom_1sec_history, odom, bevimage)
-            return self.ikd_model(accel, gyro, odom, bevimage, patch_observed, joystick_history)
+            return self.ikd_model(accel, gyro, odom, bevimage, patch_observed)#, joystick_history)
         else:
             # return self.ikd_model(odom_1sec_history, odom)
-            return self.ikd_model(accel, gyro, odom, joystick_history)
+            return self.ikd_model(accel, gyro, odom)#, joystick_history)
 
     def training_step(self, batch, batch_idx):
         odom, joystick, accel, gyro, bevimage, patches_found, joystick_history = batch

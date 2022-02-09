@@ -145,7 +145,7 @@ class WaypointNavigator():
 		self.publish_next_pos_marker(target_position)
 
 		if WaypointNavigator.is_close(target_waypoint, curr_position):
-			self.current_waypoint = min(len(self.waypoints), self.current_waypoint + 2)
+			self.current_waypoint = min(len(self.waypoints), self.current_waypoint + 1)
 			self.send_nav_command()
 
 	def publish_next_pos_marker(self, position):

@@ -196,11 +196,12 @@ if __name__ == '__main__':
 	# plt.plot(np.asarray(range(2, 30, 2)), np.asarray(distortions))
 	# plt.show()
 
-	kmeans = KMeans(n_clusters=4, random_state=0).fit(kd_response_list)
-	kmeans_label = kmeans.predict(kd_response_list)
+	# kmeans = KMeans(n_clusters=4, random_state=0).fit(kd_response_list)
+	# kmeans_label = kmeans.predict(kd_response_list)
 
 	plt.figure(figsize=(20, 20))
-	plt.scatter(kd_response_list[:, 0], kd_response_list[:, 1], c=kmeans_label, cmap='viridis', s=100)
+	# plt.scatter(kd_response_list[:, 0], kd_response_list[:, 1], c=kmeans_label, cmap='viridis', s=100)
+	plt.scatter(kd_response_list[:, 0], kd_response_list[:, 1], c=fwd_vel, cmap='Greens', s=100)
 	plt.xlim([-3, 3])
 	plt.ylim([-2, 3])
 	plt.xlabel('Forward vel KD response')
