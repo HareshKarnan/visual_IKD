@@ -300,8 +300,11 @@ if __name__ == '__main__':
 	parser.add_argument('--num_gpus', type=int, default=1, help='Number of GPUs to use')
 	parser.add_argument('--margin', type=float, default=1.0, help='Number of GPUs to use')
 	parser.add_argument('--max_epochs', type=int, default=100000, help='Number of epochs to train for')
-	parser.add_argument('--train_dataset_names', nargs='+', default=['train13_data','train14_data','train15_data', 'train17_data', 'train19_data', 'train21_data', 'train23_data', 'train24_data'])
-	parser.add_argument('--val_dataset_names', nargs='+', default=['train16_data', 'train18_data', 'train20_data', 'train22_data'])
+	parser.add_argument('--train_dataset_names', nargs='+', default=['train1_data','train3_data','train5_data',
+																	 'train7_data', 'train9_data', 'train11_data', 'train13_data', 'train15_data',
+																	 'train17_data','train19_data','train21_data','train23_data','train8_data', 'train10_data', 'train12_data'])
+	parser.add_argument('--val_dataset_names', nargs='+', default=['train2_data','train4_data','train6_data', 'train14_data', 'train16_data',
+																   'train18_data','train20_data','train22_data','train24_data'])
 	args = parser.parse_args()
 
 	dm = TripletDataModule(args.data_dir, args.train_dataset_names, args.val_dataset_names, args.batch_size)
