@@ -136,9 +136,9 @@ class EncoderModel(pl.LightningModule):
 				img = cv2.cvtColor(np.asarray(positive_patch[i]), cv2.COLOR_RGB2BGR)
 				img = cv2.resize(img, (128, 128))
 
-				an_odom_curr = metadata['positive_curr_odom'][i].numpy()[[0, 2]].round(2)
-				an_joystick = metadata['positive_joystick'][i].numpy().round(2)
-				an_odom_next = metadata['positive_next_odom'][i].numpy()[[0, 2]].round(2)
+				an_odom_curr = metadata['positive_curr_odom'][i].cpu().numpy()[[0, 2]].round(2)
+				an_joystick = metadata['positive_joystick'][i].cpu().numpy().round(2)
+				an_odom_next = metadata['positive_next_odom'][i].cpu().numpy()[[0, 2]].round(2)
 
 				# write metadata on image
 				img = self.write_metadata_on_image(img, an_odom_curr, an_joystick, an_odom_next)
@@ -153,9 +153,9 @@ class EncoderModel(pl.LightningModule):
 				img = cv2.cvtColor(np.asarray(negative_patch[i]), cv2.COLOR_RGB2BGR)
 				img = cv2.resize(img, (128, 128))
 
-				an_odom_curr = metadata['negative_curr_odom'][i].numpy()[[0, 2]].round(2)
-				an_joystick = metadata['negative_joystick'][i].numpy().round(2)
-				an_odom_next = metadata['negative_next_odom'][i].numpy()[[0, 2]].round(2)
+				an_odom_curr = metadata['negative_curr_odom'][i].cpu().numpy()[[0, 2]].round(2)
+				an_joystick = metadata['negative_joystick'][i].cpu().numpy().round(2)
+				an_odom_next = metadata['negative_next_odom'][i].cpu().numpy()[[0, 2]].round(2)
 
 				# write metadata on image
 				img = self.write_metadata_on_image(img, an_odom_curr, an_joystick, an_odom_next)
