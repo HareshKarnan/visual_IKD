@@ -11,7 +11,7 @@ from sklearn.cluster import KMeans
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags')
-parser.add_argument('--dataset_names', nargs='+', default=['train2'])
+parser.add_argument('--dataset_names', nargs='+', default=['train18'])
 parser.add_argument('--visualize', action='store_true', default=False)
 parser.add_argument('--num_threads', type=int, default=10)
 args = parser.parse_args()
@@ -125,7 +125,7 @@ def find_positive_and_negative_indices_v2(anchor_idx, data):
 		next_odom = np.asarray(data['odom'][i+5])[:3]
 
 		kd_response = [joystick[0] - next_odom[0],
-					   joystick[1] - next_odom[2]]
+					   abs(joystick[1]) - abs(next_odom[2])]
 
 		if similar_kd_response(anchor_kd_response, kd_response):
 			identical_patch_idx.append(i)
@@ -165,7 +165,7 @@ if __name__ == '__main__':
 		print('\nprocessing file : ', data_file, '\n')
 
 		valid_data = {}
-		data_indices, kd_response_list = [], []
+		data_indices, kd_response_list, fwd_vel = [], [], []
 		for i in tqdm(range(data_len - 7)):
 			# if there were no patch data, skip
 			if not data['patches_found'][i]: continue
@@ -175,10 +175,11 @@ if __name__ == '__main__':
 			next_odom = np.asarray(data['odom'][i + 5])[:3]
 
 			kd_response = [joystick[0] - next_odom[0],
-						   joystick[1] - next_odom[2]]
+						   abs(joystick[1]) - abs(next_odom[2])]
 
 			data_indices.append(i)
 			kd_response_list.append(kd_response)
+			fwd_vel.append(curr_odom[0])
 
 	# now run kmeans clustering
 	print(i)
@@ -188,17 +189,22 @@ if __name__ == '__main__':
 
 
 	# distortions = []
-	# for num_clusters in range(2, 50):
+	# for num_clusters in range(2, 30, 2):
 	# 	kmeans = KMeans(n_clusters=num_clusters, random_state=0).fit(kd_response_list)
 	# 	distortions.append(kmeans.inertia_)
 	#
-	# plt.plot(np.asarray(range(2, 50)), np.asarray(distortions))
+	# plt.plot(np.asarray(range(2, 30, 2)), np.asarray(distortions))
 	# plt.show()
 
+	kmeans = KMeans(n_clusters=4, random_state=0).fit(kd_response_list)
+	kmeans_label = kmeans.predict(kd_response_list)
+
 	plt.figure(figsize=(20, 20))
-	plt.scatter(kd_response_list[:, 0], kd_response_list[:, 1])
+	plt.scatter(kd_response_list[:, 0], kd_response_list[:, 1], c=kmeans_label, cmap='viridis', s=100)
 	plt.xlim([-3, 3])
-	plt.ylim([-3, 3])
+	plt.ylim([-2, 3])
+	plt.xlabel('Forward vel KD response')
+	plt.ylabel('Angular vel KD response')
 	plt.show()
 
 

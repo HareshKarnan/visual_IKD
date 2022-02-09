@@ -32,6 +32,10 @@ class ListenRecordData:
         self.save_data_path = save_data_path
         self.rosbag_play_process = rosbag_play_process
 
+        self.odom_msgs = np.zeros((200, 3), dtype=np.float32)
+        self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
+        self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
+
         with open(config_path, 'r') as f:
             cprint('Reading Config file.. ', 'yellow')
             self.config = yaml.safe_load(f)
@@ -70,9 +74,6 @@ class ListenRecordData:
 
         self.open_thread_lists = []
 
-        self.odom_msgs = np.zeros((200, 3), dtype=np.float32)
-        self.accel_msgs = np.zeros((60, 3), dtype=np.float32)
-        self.gyro_msgs = np.zeros((200, 3), dtype=np.float32)
 
     def callback(self, image, odom, joystick, vectornavimu, sensor_core):
         print('Received messages :: ', self.counter, ' ___')

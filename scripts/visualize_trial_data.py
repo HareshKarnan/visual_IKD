@@ -37,7 +37,7 @@ def read_expt_data_from_rosbags(rosbag_paths):
 
 	return data
 
-def load_waypoints(waypoint_path):
+def load_waypoints_position(waypoint_path):
 	# get the ground truth waypoint data
 	with open(waypoint_path) as f:
 		waypoints = yaml.load(f, Loader=yaml.FullLoader)
@@ -55,7 +55,7 @@ if __name__ == '__main__':
 	# read the expt data from the rosbags
 	data = read_expt_data_from_rosbags(rosbag_paths)
 
-	waypoints = load_waypoints('data/expt_data/waypoints.yaml')
+	waypoints = load_waypoints_position('data/expt_data/waypoints.yaml')
 
 
 	for i in range(1, len(data['graph_nav'])+1):

@@ -8,7 +8,7 @@ import threading
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags')
-parser.add_argument('--dataset_names', nargs='+', default=['train1'])
+parser.add_argument('--dataset_names', nargs='+', default=['train13'])
 parser.add_argument('--visualize', action='store_true', default=False)
 parser.add_argument('--num_threads', type=int, default=10)
 args = parser.parse_args()
@@ -24,8 +24,8 @@ ODOM_FWD_VEL_THRESHOLD = 0.75
 ODOM_SIDE_VEL_THRESHOLD = 0.25
 ODOM_ANGULAR_VEL_THRESHOLD = 0.25
 
-KD_THRESH_FWD_VEL = 0.1
-KD_THRESH_ANGULAR_VEL = 0.1
+KD_THRESH_FWD_VEL = 0.5
+KD_THRESH_ANGULAR_VEL = 0.2
 
 def joysticks_symmetric_close(joystick1, joystick2):
 	if abs(abs(joystick1[0]) - abs(joystick2[0])) > JOYSTICK_FWD_VEL_THRESHOLD: return False
@@ -122,7 +122,7 @@ def find_positive_and_negative_indices_v2(anchor_idx, data):
 		next_odom = np.asarray(data['odom'][i+5])[:3]
 
 		kd_response = [joystick[0] - next_odom[0],
-					   joystick[1] - next_odom[2]]
+					   abs(joystick[1]) - abs(next_odom[2])]
 
 		if similar_kd_response(anchor_kd_response, kd_response):
 			identical_patch_idx.append(i)
@@ -146,8 +146,8 @@ def similar_kd_response(kd_response_1, kd_response_2):
 	if kd_response_1[1] * kd_response_2[1] < 0: return False
 
 	# if magnitude of response is greater than a threshold, then they are different
-	if abs(abs(kd_response_1[0]) - abs(kd_response_2[0])) > KD_THRESH_FWD_VEL: return False
-	if abs(abs(kd_response_1[1]) - abs(kd_response_2[1])) > KD_THRESH_ANGULAR_VEL: return False
+	if abs(kd_response_1[0] - kd_response_2[0]) > KD_THRESH_FWD_VEL: return False
+	if abs(kd_response_1[1] - kd_response_2[0]) > KD_THRESH_ANGULAR_VEL: return False
 
 	# response was same then..
 	return True
@@ -200,16 +200,16 @@ def process_datset(dataset):
 			print('next odom', data['odom'][positive_patch_idx[0] + 5][:3])
 
 			# numpy checks
-			anchor_curr_odom = np.asarray(data['odom'][i + 4])[:3]
-			anchor_next_odom = np.asarray(data['odom'][i + 5])[:3]
-			positive_odom_curr = np.asarray(data['odom'][positive_patch_idx[0] + 4])[:3]
-			positive_odom_next = np.asarray(data['odom'][positive_patch_idx[0] + 5])[:3]
-			negative_odom_curr = np.asarray(data['odom'][distant_patch_idx[0] + 4])[:3]
-			negative_odom_next = np.asarray(data['odom'][distant_patch_idx[0] + 5])[:3]
-			print('positive : ', np.allclose(positive_odom_curr, anchor_curr_odom, 0.1))
-			print('negative : ', np.allclose(negative_odom_curr, anchor_curr_odom, 0.1))
-			print('positive : ', np.allclose(positive_odom_next, anchor_next_odom, 0.02))
-			print('negative : ', np.allclose(negative_odom_next, anchor_next_odom, 0.02))
+			# anchor_curr_odom = np.asarray(data['odom'][i + 4])[:3]
+			# anchor_next_odom = np.asarray(data['odom'][i + 5])[:3]
+			# positive_odom_curr = np.asarray(data['odom'][positive_patch_idx[0] + 4])[:3]
+			# positive_odom_next = np.asarray(data['odom'][positive_patch_idx[0] + 5])[:3]
+			# negative_odom_curr = np.asarray(data['odom'][distant_patch_idx[0] + 4])[:3]
+			# negative_odom_next = np.asarray(data['odom'][distant_patch_idx[0] + 5])[:3]
+			# print('positive : ', np.allclose(positive_odom_curr, anchor_curr_odom, 0.1))
+			# print('negative : ', np.allclose(negative_odom_curr, anchor_curr_odom, 0.1))
+			# print('positive : ', np.allclose(positive_odom_next, anchor_next_odom, 0.02))
+			# print('negative : ', np.allclose(negative_odom_next, anchor_next_odom, 0.02))
 			cv2.waitKey(0)
 
 	# remove negative patches that are not an anchor
@@ -227,6 +227,7 @@ def process_datset(dataset):
 
 		valid_data[valid_anchor]['n_idx'] = valid_negatives
 		valid_data[valid_anchor]['n_weight'] = valid_negatives_weights
+
 		if len(valid_negatives) == 0:
 			raise Exception("Removed all negatives for this sample!! :(")
 

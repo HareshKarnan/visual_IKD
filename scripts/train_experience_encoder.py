@@ -41,15 +41,15 @@ class VisualIMUEncoder(nn.Module):
 		)
 
 		self.imu_visual_net = nn.Sequential(
-			nn.Linear(64 + 32, 64), nn.ReLU(), # 64 visual + 32 imu + 2 action
+			nn.Linear(64 + 32 + 2*4, 64), nn.ReLU(), # 64 visual + 32 imu + 2*4 action history
 			nn.Linear(64, 64), nn.ReLU(),
 			nn.Linear(64, 32),
 		)
 
-	def forward(self, visual_input, imu_input):
+	def forward(self, visual_input, imu_input, action_history):
 		patch_embedding = self.visual_encoder(visual_input)
 		imu_embedding = self.imu_net(imu_input)
-		embedding = self.imu_visual_net(torch.cat([patch_embedding, imu_embedding], dim=1))
+		embedding = self.imu_visual_net(torch.cat([patch_embedding, imu_embedding, action_history], dim=1))
 		embedding = F.normalize(embedding, p=2, dim=1)
 		return embedding
 
@@ -67,23 +67,23 @@ class EncoderModel(pl.LightningModule):
 		soft_triplet_loss = (torch.exp(d_ap) / (torch.exp(d_ap) + torch.exp(d_an)))**2
 		return soft_triplet_loss.mean()
 
-	def forward(self, patch, imu):
-		return self.visual_imu_encoder_model(patch, imu)
+	def forward(self, patch, imu, action):
+		return self.visual_imu_encoder_model(patch, imu, action)
 
 	def training_step(self, batch, batch_idx):
 		anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu, _, anchor_action, positive_action, negative_action = batch
-		an_embedding = self.forward(anchor_patch.float(), anchor_imu.float())
-		pos_embedding = self.forward(positive_patch.float(), positive_imu.float())
-		neg_embedding = self.forward(negative_patch.float(), negative_imu.float())
+		an_embedding = self.forward(anchor_patch.float(), anchor_imu.float(), anchor_action.float())
+		pos_embedding = self.forward(positive_patch.float(), positive_imu.float(), positive_action.float())
+		neg_embedding = self.forward(negative_patch.float(), negative_imu.float(), negative_action.float())
 		loss = self.loss(an_embedding, pos_embedding, neg_embedding)
 		self.log('train_loss', loss, prog_bar=True, logger=True)
 		return loss
 
 	def validation_step(self, batch, batch_idx):
 		anchor_patch, positive_patch, negative_patch, anchor_imu, positive_imu, negative_imu, _, anchor_action, positive_action, negative_action= batch
-		an_embedding = self.forward(anchor_patch.float(), anchor_imu.float())
-		pos_embedding = self.forward(positive_patch.float(), positive_imu.float())
-		neg_embedding = self.forward(negative_patch.float(), negative_imu.float())
+		an_embedding = self.forward(anchor_patch.float(), anchor_imu.float(), anchor_action.float())
+		pos_embedding = self.forward(positive_patch.float(), positive_imu.float(), positive_action.float())
+		neg_embedding = self.forward(negative_patch.float(), negative_imu.float(), negative_action.float())
 		loss = self.loss(an_embedding, pos_embedding, neg_embedding)
 		self.log('val_loss', loss, prog_bar=True, logger=True)
 		return loss
@@ -178,6 +178,13 @@ class TripletDataset(Dataset):
 		self.data = data
 		self.data_distant_indices = data_distant_indices
 
+		# process joystick history
+		self.data['joystick_1sec_history'] = []
+		joystick_history = [[0.0, 0.0] for _ in range(4)]
+		for i in range(len(data['joystick'])):
+			joystick_history = joystick_history[1:] + data['joystick'][i]
+			self.data['joystick_1sec_history'].append(joystick_history)
+
 		# invert the weights for the positives (so we sample the easy positives more)
 		for key in list(self.data_distant_indices.keys()):
 			self.data_distant_indices[key]['p_weight'] = [1./float(val) for val in self.data_distant_indices[key]['p_weight']]
@@ -214,9 +221,9 @@ class TripletDataset(Dataset):
 		negative_gyro = np.asarray(self.data['gyro_msg'][anchor_idx])
 		negative_imu = np.concatenate((negative_accel, negative_gyro))
 
-		anchor_joystick = np.asarray(self.data['joystick'][anchor_idx])
-		positive_joystick = np.asarray(self.data['joystick'][positive_idx])
-		negative_joystick = np.asarray(self.data['joystick'][negative_idx])
+		anchor_joystick = np.asarray(self.data['joystick_1sec_history'][anchor_idx])
+		positive_joystick = np.asarray(self.data['joystick_1sec_history'][positive_idx])
+		negative_joystick = np.asarray(self.data['joystick_1sec_history'][negative_idx])
 
 		metadata = {
 			'anchor_curr_odom': np.asarray(self.data['odom'][anchor_idx+4][:3]),
