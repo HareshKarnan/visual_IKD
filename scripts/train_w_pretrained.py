@@ -23,19 +23,19 @@ class VisualIKDNetPretrained(nn.Module):
 		self.encoder = encoder
 
 		self.ikdmodel = nn.Sequential(
-			nn.Linear(32 + 2 + 3, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+			nn.Linear(6 + 2 + 3, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
 			nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
 			nn.Linear(hidden_size, hidden_size), nn.PReLU(),
 			nn.Linear(hidden_size, 2),
 		)
 
-	def forward(self, accel, gyro, odom, visual_input, patch_observed):
-		with torch.no_grad():
-			visual_encoding = self.encoder.visual_imu_encoder_model.visual_encoder(visual_input)
-			unobserved_indices = torch.nonzero(torch.logical_not(patch_observed)).squeeze()
-			visual_encoding[unobserved_indices] = torch.zeros(visual_encoding[unobserved_indices].shape).cuda()
-			imu_encoding = self.encoder.visual_imu_encoder_model.imu_net(torch.cat((accel, gyro), dim=1))
-			kinodynamic_encoding = self.encoder.visual_imu_encoder_model.imu_visual_net(torch.cat((visual_encoding, imu_encoding), dim=1))
+	def forward(self, accel, gyro, odom, visual_input, patch_observed, joystick_history):
+		# with torch.no_grad():
+		visual_encoding = self.encoder.visual_imu_encoder_model.visual_encoder(visual_input)
+		unobserved_indices = torch.nonzero(torch.logical_not(patch_observed)).squeeze()
+		visual_encoding[unobserved_indices] = torch.zeros(visual_encoding[unobserved_indices].shape).cuda()
+		imu_encoding = self.encoder.visual_imu_encoder_model.imu_net(torch.cat((accel, gyro), dim=1))
+		kinodynamic_encoding = self.encoder.visual_imu_encoder_model.imu_visual_net(torch.cat((visual_encoding, imu_encoding, joystick_history), dim=1))
 
 		return self.ikdmodel(torch.cat((kinodynamic_encoding, odom), dim=1))
 
@@ -46,31 +46,31 @@ class IKDModel(pl.LightningModule):
 
 		cprint('Loading the pretrained weights of the encoder', 'blue', attrs=['bold', 'blink'])
 		self.encoder = EncoderModel.load_from_checkpoint(checkpoint_path=encoder_checkpoint_path)
-		self.encoder.eval()
+		# self.encoder.eval()
 		# self.encoder = EncoderModel()
 		self.ikd_model = VisualIKDNetPretrained(hidden_size, self.encoder)
 
 		self.loss = torch.nn.MSELoss()
 
-	def forward(self, accel, gyro, odom, bevimage=None, patch_observed=None):
-		return self.ikd_model(accel, gyro, odom, bevimage, patch_observed)
+	def forward(self, accel, gyro, odom, bevimage=None, patch_observed=None, joystick_history=None):
+		return self.ikd_model(accel, gyro, odom, bevimage, patch_observed, joystick_history)
 
 
 	def training_step(self, batch, batch_idx):
-		odom, joystick, accel, gyro, bevimage, patches_found = batch
+		odom, joystick, accel, gyro, bevimage, patches_found, joystick_history = batch
 		if bevimage is not None:
 			bevimage = bevimage.permute(0, 3, 1, 2).float()
-		prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found)
+		prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found, joystick_history.float())
 
 		loss = self.loss(prediction, joystick.float())
 		self.log('train_loss', loss, prog_bar=True, logger=True)
 		return loss
 
 	def validation_step(self, batch, batch_idx):
-		odom, joystick, accel, gyro, bevimage, patches_found = batch
+		odom, joystick, accel, gyro, bevimage, patches_found, joystick_history = batch
 		if bevimage is not None:
 			bevimage = bevimage.permute(0, 3, 1, 2).float()
-		prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found)
+		prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found, joystick_history.float())
 
 		loss = self.loss(prediction, joystick.float())
 		self.log('val_loss', loss, prog_bar=True, logger=True)
@@ -80,7 +80,7 @@ class IKDModel(pl.LightningModule):
 		return self.validation_step(batch, batch_idx)
 
 	def configure_optimizers(self):
-		return torch.optim.AdamW(self.ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
+		return torch.optim.AdamW(self.parameters(), lr=3e-4, weight_decay=1e-5)
 
 
 class ProcessedBagDataset(Dataset):
@@ -92,6 +92,13 @@ class ProcessedBagDataset(Dataset):
 		# self.data['odom_1sec_msg'] = np.asarray(self.data['odom_1sec_msg'])
 		self.data['accel_msg'] = np.asarray(self.data['accel_msg'])
 		self.data['gyro_msg'] = np.asarray(self.data['gyro_msg'])
+
+		# process joystick history
+		self.data['joystick_1sec_history'] = []
+		joystick_history = [[0.0, 0.0] for _ in range(4)]
+		for i in range(len(data['joystick'])):
+			joystick_history = joystick_history[1:] + [data['joystick'][i]]
+			self.data['joystick_1sec_history'].append(joystick_history)
 
 	# self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
 	# self.data['joystick'][:, 1] = self.data['joystick'][:, 1] - self.data['odom'][:, 2]
@@ -122,6 +129,7 @@ class ProcessedBagDataset(Dataset):
 		joystick = self.data['joystick'][idx]
 		patches = self.data['patches'][idx]
 		patches_found = self.data['patches_found'][idx]
+		joystick_history = np.asarray(self.data['joystick_1sec_history'][idx]).flatten()
 
 		patch = patches[np.random.randint(0, len(patches))]  # pick a random patch
 		patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
@@ -131,7 +139,7 @@ class ProcessedBagDataset(Dataset):
 		# cv2.waitKey(0)
 
 		# return odom_val, joystick-odom_val[-2:], accel, gyro, patch, patches_found
-		return odom_val, joystick, accel, gyro, patch, patches_found
+		return odom_val, joystick, accel, gyro, patch, patches_found, joystick_history
 
 
 class IKDDataModule(pl.LightningDataModule):
@@ -190,17 +198,12 @@ if __name__ == '__main__':
 	parser.add_argument('--hidden_size', type=int, default=32)
 	parser.add_argument('--use_vision', action='store_true', default=True)
 	parser.add_argument('--data_dir', type=str, default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags/')
-	parser.add_argument('--train_dataset_names', type=str, nargs='+', default=['train1_data',
-																			   'train2_data',
-																			   'train3_data',
-																			   'train5_data',
-																			   'train7_data',
-																			   'train9_data',
-																			   'train10_data'])
-	parser.add_argument('--val_dataset_names', type=str, nargs='+', default=['train4_data',
-																			 'train6_data',
-																			 'train8_data'])
-	parser.add_argument('--encoder_checkpoint', type=str, default='models/encoder/31-01-2022-21-17-37.ckpt')
+	parser.add_argument('--train_dataset_names', nargs='+',
+						default=['train13_data', 'train14_data', 'train15_data', 'train17_data', 'train19_data',
+								 'train21_data', 'train23_data', 'train24_data'])
+	parser.add_argument('--val_dataset_names', nargs='+',
+						default=['train16_data', 'train18_data', 'train20_data', 'train22_data'])
+	parser.add_argument('--encoder_checkpoint', type=str, default='models/encoder/09-02-2022-00-20-53.ckpt')
 	args = parser.parse_args()
 
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

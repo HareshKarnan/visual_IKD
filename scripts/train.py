@@ -37,35 +37,35 @@ class IKDModel(pl.LightningModule):
 
         self.loss = torch.nn.MSELoss()
 
-    def forward(self, accel, gyro, odom, bevimage=None, patch_observed=None):
+    def forward(self, accel, gyro, odom, bevimage=None, patch_observed=None, joystick_history=None):
         if self.use_vision:
             # return self.ikd_model(odom_1sec_history, odom, bevimage)
-            return self.ikd_model(accel, gyro, odom, bevimage, patch_observed)
+            return self.ikd_model(accel, gyro, odom, bevimage, patch_observed, joystick_history)
         else:
             # return self.ikd_model(odom_1sec_history, odom)
-            return self.ikd_model(accel, gyro, odom)
+            return self.ikd_model(accel, gyro, odom, joystick_history)
 
     def training_step(self, batch, batch_idx):
-        odom, joystick, accel, gyro, bevimage, patches_found = batch
+        odom, joystick, accel, gyro, bevimage, patches_found, joystick_history = batch
         if self.use_vision:
             if bevimage is not None:
                 bevimage = bevimage.permute(0, 3, 1, 2).float()
-            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found)
+            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found, joystick_history.float())
         else:
-            prediction = self.forward(accel.float(), gyro.float(), odom.float())
+            prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
 
         loss = self.loss(prediction, joystick.float())
         self.log('train_loss', loss, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        odom, joystick, accel, gyro, bevimage, patches_found = batch
+        odom, joystick, accel, gyro, bevimage, patches_found, joystick_history = batch
         if self.use_vision:
             if bevimage is not None:
                 bevimage = bevimage.permute(0, 3, 1, 2).float()
-            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found)
+            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found, joystick_history.float())
         else:
-            prediction = self.forward(accel.float(), gyro.float(), odom.float())
+            prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
 
         loss = self.loss(prediction, joystick.float())
         self.log('val_loss', loss, prog_bar=True, logger=True)
@@ -86,6 +86,13 @@ class ProcessedBagDataset(Dataset):
         # self.data['odom_1sec_msg'] = np.asarray(self.data['odom_1sec_msg'])
         self.data['accel_msg'] = np.asarray(self.data['accel_msg'])
         self.data['gyro_msg'] = np.asarray(self.data['gyro_msg'])
+
+        # process joystick history
+        self.data['joystick_1sec_history'] = []
+        joystick_history = [[0.0, 0.0] for _ in range(4)]
+        for i in range(len(data['joystick'])):
+            joystick_history = joystick_history[1:] + [data['joystick'][i]]
+            self.data['joystick_1sec_history'].append(joystick_history)
 
         # self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
         # self.data['joystick'][:, 1] = self.data['joystick'][:, 1] - self.data['odom'][:, 2]
@@ -116,6 +123,7 @@ class ProcessedBagDataset(Dataset):
         joystick = self.data['joystick'][idx]
         patches = self.data['patches'][idx]
         patches_found = self.data['patches_found'][idx]
+        joystick_history = np.asarray(self.data['joystick_1sec_history'][idx]).flatten()
 
         patch = patches[np.random.randint(0, len(patches))] # pick a random patch
         patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
@@ -125,7 +133,7 @@ class ProcessedBagDataset(Dataset):
         # cv2.waitKey(0)
 
         # return odom_val, joystick-odom_val[-2:], accel, gyro, patch, patches_found
-        return odom_val, joystick, accel, gyro, patch, patches_found
+        return odom_val, joystick, accel, gyro, patch, patches_found, joystick_history
 
 class IKDDataModule(pl.LightningDataModule):
     def __init__(self, data_dir, train_dataset_names, val_dataset_names, batch_size, history_len):
