@@ -119,9 +119,9 @@ class EncoderModel(pl.LightningModule):
 				img = cv2.resize(img, (128, 128))
 
 				# write metadata on image
-				an_odom_curr = metadata['anchor_curr_odom'][i].numpy()[[0, 2]].round(2)
-				an_joystick = metadata['anchor_joystick'][i].numpy().round(2)
-				an_odom_next = metadata['anchor_next_odom'][i].numpy()[[0, 2]].round(2)
+				an_odom_curr = metadata['anchor_curr_odom'][i].cpu().numpy()[[0, 2]].round(2)
+				an_joystick = metadata['anchor_joystick'][i].cpu().numpy().round(2)
+				an_odom_next = metadata['anchor_next_odom'][i].cpu().numpy()[[0, 2]].round(2)
 
 				img = self.write_metadata_on_image(img, an_odom_curr, an_joystick, an_odom_next)
 
