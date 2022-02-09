@@ -18,89 +18,8 @@ if args.visualize:
 min_threads = min(args.num_threads, len(args.dataset_names))
 cprint('Using ' + str(min_threads) + ' threads', 'white', attrs=['bold'])
 
-JOYSTICK_FWD_VEL_THRESHOLD = 0.75
-JOYSTICK_ANGULAR_VEL_THRESHOLD = 0.25
-ODOM_FWD_VEL_THRESHOLD = 0.75
-ODOM_SIDE_VEL_THRESHOLD = 0.25
-ODOM_ANGULAR_VEL_THRESHOLD = 0.25
-
 KD_THRESH_FWD_VEL = 0.5
 KD_THRESH_ANGULAR_VEL = 0.2
-
-def joysticks_symmetric_close(joystick1, joystick2):
-	if abs(abs(joystick1[0]) - abs(joystick2[0])) > JOYSTICK_FWD_VEL_THRESHOLD: return False
-	elif abs(abs(joystick1[1]) - abs(joystick2[1])) > JOYSTICK_ANGULAR_VEL_THRESHOLD: return False
-	if joystick1[1] * joystick2[1] > 0: return False # same sign
-	return True
-
-def odoms_symmetric_close(odom1, odom2):
-	if abs(abs(odom1[0]) - abs(odom2[0])) > ODOM_FWD_VEL_THRESHOLD: return False
-	if abs(abs(odom1[1]) - abs(odom2[1])) > ODOM_SIDE_VEL_THRESHOLD: return False
-	if abs(abs(odom1[2]) - abs(odom2[2])) > ODOM_ANGULAR_VEL_THRESHOLD: return False
-	if odom1[1] * odom2[1] > 0: return False # same sign
-	if odom1[2] * odom2[2] > 0: return False # same sign
-	return True
-
-def joysticks_close(joystick1, joystick2):
-	if abs(joystick1[0] - joystick2[0]) > JOYSTICK_FWD_VEL_THRESHOLD: return False
-	if abs(joystick1[1] - joystick2[1]) > JOYSTICK_ANGULAR_VEL_THRESHOLD: return False
-	if joystick1[1] * joystick2[1] < 0: return False # opposite sign
-	return True
-
-def odoms_close(odom1, odom2):
-	if abs(odom1[0] - odom2[0]) > ODOM_FWD_VEL_THRESHOLD: return False
-	if abs(odom1[1] - odom2[1]) > ODOM_SIDE_VEL_THRESHOLD: return False
-	if abs(odom1[2] - odom2[2]) > ODOM_ANGULAR_VEL_THRESHOLD: return False
-	if odom1[1] * odom2[1] < 0: return False # opposite sign
-	if odom1[2] * odom2[2] < 0: return False # opposite sign
-	return True
-
-def find_positive_and_negative_indices(anchor_idx, data):
-	anchor_joystick = data['joystick'][anchor_idx]
-	anchor_curr_odom = np.asarray(data['odom'][anchor_idx+4])[:3]
-	anchor_next_odom = np.asarray(data['odom'][anchor_idx+5])[:3]
-
-	data_len = len(data['odom'])
-	distant_patch_idx, identical_patch_idx = [], []
-	distant_patch_weight, identical_patch_weight = [], []
-
-	full_list = list(set(range(data_len-6)) - set([anchor_idx]))
-	for i in full_list:
-		if not data['patches_found'][i]: continue
-		joystick = np.asarray(data['joystick'][i])
-		curr_odom = np.asarray(data['odom'][i+4])[:3]
-		next_odom = np.asarray(data['odom'][i+5])[:3]
-
-		# normal situation where all values including signs are close together
-		if joysticks_close(anchor_joystick, joystick) and \
-			odoms_close(curr_odom, anchor_curr_odom) and \
-			odoms_close(next_odom, anchor_next_odom):
-
-			identical_patch_idx.append(i)
-			weight = np.linalg.norm(anchor_joystick-joystick) + \
-					 np.linalg.norm(curr_odom-anchor_curr_odom) + \
-					 np.linalg.norm(next_odom-anchor_next_odom)
-			identical_patch_weight.append(weight)
-
-		# perfect symmetric situation
-		elif joysticks_symmetric_close(anchor_joystick, joystick) and \
-			odoms_symmetric_close(curr_odom, anchor_curr_odom) and \
-			odoms_symmetric_close(next_odom, anchor_next_odom):
-			identical_patch_idx.append(i)
-			weight = np.linalg.norm(anchor_joystick - joystick) + \
-					 np.linalg.norm(curr_odom - anchor_curr_odom) + \
-					 np.linalg.norm(next_odom - anchor_next_odom)
-			identical_patch_weight.append(weight)
-
-		# did not match at all
-		elif not odoms_close(curr_odom, anchor_curr_odom):
-			distant_patch_idx.append(i)
-			weight = np.linalg.norm(anchor_joystick - joystick) + \
-					 np.linalg.norm(curr_odom - anchor_curr_odom) + \
-					 np.linalg.norm(next_odom - anchor_next_odom)
-			distant_patch_weight.append(weight)
-
-	return identical_patch_idx, identical_patch_weight, distant_patch_idx, distant_patch_weight
 
 def find_positive_and_negative_indices_v2(anchor_idx, data):
 	anchor_joystick = data['joystick'][anchor_idx]
