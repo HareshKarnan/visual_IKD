@@ -325,39 +325,39 @@ class LiveDataProcessor(object):
         if np.sum(zero_count) > PATCH_EPSILON:
             return None, 1.0
 
-        vis_img = prev_image.copy()
+        # vis_img = prev_image.copy()
 
         # draw the patch rectangle
-        cv2.line(
-            vis_img,
-            (patch_corners_image_frame[0][0], patch_corners_image_frame[0][1]),
-            (patch_corners_image_frame[1][0], patch_corners_image_frame[1][1]),
-            (0, 255, 0),
-            2
-        )
-        cv2.line(
-            vis_img,
-            (patch_corners_image_frame[1][0], patch_corners_image_frame[1][1]),
-            (patch_corners_image_frame[2][0], patch_corners_image_frame[2][1]),
-            (0, 255, 0),
-            2
-        )
-        cv2.line(
-            vis_img,
-            (patch_corners_image_frame[2][0], patch_corners_image_frame[2][1]),
-            (patch_corners_image_frame[3][0], patch_corners_image_frame[3][1]),
-            (0, 255, 0),
-            2
-        )
-        cv2.line(
-            vis_img,
-            (patch_corners_image_frame[3][0], patch_corners_image_frame[3][1]),
-            (patch_corners_image_frame[0][0], patch_corners_image_frame[0][1]),
-            (0, 255, 0),
-            2
-        )
-        cv2.imshow('patch viz', vis_img)
-        cv2.waitKey(1)
+        # cv2.line(
+        #     vis_img,
+        #     (patch_corners_image_frame[0][0], patch_corners_image_frame[0][1]),
+        #     (patch_corners_image_frame[1][0], patch_corners_image_frame[1][1]),
+        #     (0, 255, 0),
+        #     2
+        # )
+        # cv2.line(
+        #     vis_img,
+        #     (patch_corners_image_frame[1][0], patch_corners_image_frame[1][1]),
+        #     (patch_corners_image_frame[2][0], patch_corners_image_frame[2][1]),
+        #     (0, 255, 0),
+        #     2
+        # )
+        # cv2.line(
+        #     vis_img,
+        #     (patch_corners_image_frame[2][0], patch_corners_image_frame[2][1]),
+        #     (patch_corners_image_frame[3][0], patch_corners_image_frame[3][1]),
+        #     (0, 255, 0),
+        #     2
+        # )
+        # cv2.line(
+        #     vis_img,
+        #     (patch_corners_image_frame[3][0], patch_corners_image_frame[3][1]),
+        #     (patch_corners_image_frame[0][0], patch_corners_image_frame[0][1]),
+        #     (0, 255, 0),
+        #     2
+        # )
+        # cv2.imshow('patch viz', vis_img)
+        # cv2.waitKey(1)
 
         return patch, (np.sum(zero_count) / (64. * 64.))
 
