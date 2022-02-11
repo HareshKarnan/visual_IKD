@@ -78,9 +78,11 @@ class IKDModel(pl.LightningModule):
         return torch.optim.AdamW(self.ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
 
 class ProcessedBagDataset(Dataset):
-    def __init__(self, data, history_len):
+    def __init__(self, data, history_len, use_simple_vision=False):
         self.data = data
         self.history_len = history_len
+        self.use_simple_vision = use_simple_vision
+
         self.data['odom'] = np.asarray(self.data['odom'])
         self.data['joystick'] = np.asarray(self.data['joystick'])
         # self.data['odom_1sec_msg'] = np.asarray(self.data['odom_1sec_msg'])
@@ -121,18 +123,22 @@ class ProcessedBagDataset(Dataset):
         accel = self.data['accel_msg'][idx]
         gyro = self.data['gyro_msg'][idx]
         joystick = self.data['joystick'][idx]
-        patches = self.data['patches'][idx]
-        patches_found = self.data['patches_found'][idx]
         joystick_history = np.asarray(self.data['joystick_1sec_history'][idx]).flatten()
 
-        patch = patches[np.random.randint(0, len(patches))] # pick a random patch
-        patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
-        patch /= 255.0
+        if self.use_simple_vision:
+            patches_found = np.asarray([True])
+            patch = self.data['front_cam_image'][idx]
+            # resize the image to 64x64
+            patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA)
+            patch = patch.astype(np.float32) / 255.0
 
-        # cv2.imshow('disp', patch)
-        # cv2.waitKey(0)
+        else:
+            patches_found = self.data['patches_found'][idx]
+            patches = self.data['patches'][idx]
+            patch = patches[np.random.randint(0, len(patches))] # pick a random patch
+            patch = cv2.resize(patch, (64, 64), interpolation=cv2.INTER_AREA).astype(np.float32)
+            patch /= 255.0
 
-        # return odom_val, joystick-odom_val[-2:], accel, gyro, patch, patches_found
         return odom_val, joystick, accel, gyro, patch, patches_found, joystick_history
 
 class IKDDataModule(pl.LightningDataModule):
