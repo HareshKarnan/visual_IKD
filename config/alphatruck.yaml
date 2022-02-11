@@ -10,4 +10,4 @@ steering_to_servo_gain: -1.8
 steering_to_servo_offset: 0.525
 servo_min: 0.0
 servo_max: 1.0
-wheelbase: 0.324
+wheelbase: 0.480

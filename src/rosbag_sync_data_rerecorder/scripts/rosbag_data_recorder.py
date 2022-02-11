@@ -201,7 +201,7 @@ class ListenRecordData:
 
     def process_image_data(self, msg_data):
         front_cam_images = []
-        for i in range(len(msg_data['image_msg'])):
+        for i in tqdm(range(len(msg_data['image_msg']))):
             img = np.fromstring(msg_data['image_msg'][i].data, np.uint8)
             img = cv2.imdecode(img, cv2.IMREAD_COLOR)
             # reshape image to 128x128
@@ -240,7 +240,7 @@ class ListenRecordData:
             curr_odom = msg_data['odom_msg'][i]
 
             found_patch = False
-            for j in range(i, max(i-30, 0), -1):
+            for j in range(i, max(i-30, 0), -2):
                 prev_image = processed_data['image'][j]
                 prev_odom = msg_data['odom_msg'][j]
                 # cv2.imshow('src_image', processed_data['src_image'][i])
@@ -254,7 +254,7 @@ class ListenRecordData:
                     msg_data['patches'][i].append(patch)
 
                 # stop adding more than 10 patches for a single data point
-                if found_patch and len(msg_data['patches'][i]) > 10: break
+                if found_patch and len(msg_data['patches'][i]) > 5: break
 
             if not found_patch:
                 print("Unable to find patch for idx: ", i)

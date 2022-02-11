@@ -206,7 +206,9 @@ if __name__ == '__main__':
                          callbacks=[early_stopping_cb, model_checkpoint_cb],
                          log_every_n_steps=10,
                          distributed_backend='ddp',
-                         stochastic_weight_avg=False,
+                         num_sanity_val_steps=-1,
+                         stochastic_weight_avg=True,
+                         gradient_clip_val=0.5,
                          logger=True,
                          )
 

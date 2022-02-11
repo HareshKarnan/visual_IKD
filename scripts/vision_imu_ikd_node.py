@@ -109,8 +109,8 @@ class LiveDataProcessor(object):
 
         # search for the patch in the past 3 frames
         found_patch, patch = False, None
-        # for j in range(self.patch_history-1, -1, -1):
-        for j in range(self.patch_history):
+        for j in range(self.patch_history-1, -1, -1):
+        # for j in range(self.patch_history):
             prev_image = self.history_storage['bevimage'][j]
             prev_odom = self.history_storage['odom_msg'][j]
             odom_vel = self.data['odom']
@@ -297,10 +297,10 @@ class LiveDataProcessor(object):
             inv_pos_transform @ patch_corners[3],
         ]
         scaled_patch_corners = [
-            (patch_corners_prev_frame[0] * 170).astype(np.int),
-            (patch_corners_prev_frame[1] * 170).astype(np.int),
-            (patch_corners_prev_frame[2] * 170).astype(np.int),
-            (patch_corners_prev_frame[3] * 170).astype(np.int),
+            (patch_corners_prev_frame[0] * 206).astype(np.int),
+            (patch_corners_prev_frame[1] * 206).astype(np.int),
+            (patch_corners_prev_frame[2] * 206).astype(np.int),
+            (patch_corners_prev_frame[3] * 206).astype(np.int),
         ]
 
         CENTER = np.array((640, 720))
