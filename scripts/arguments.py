@@ -16,6 +16,6 @@ def get_args():
 																	 'train13_data', 'train14_data', 'train15_data',
 																	 'train17_data', 'train18_data', 'train20_data'])
 	parser.add_argument('--val_dataset_names', nargs='+',
-						default=['train2_data', 'train4_data', 'train6_data', 'train8_data', 'train12_data', 'train16_data' 'train19_data', 'train21_data'])
+						default=['train2_data', 'train4_data', 'train6_data', 'train8_data', 'train12_data', 'train16_data', 'train19_data', 'train21_data'])
 
 	return parser.parse_args()
