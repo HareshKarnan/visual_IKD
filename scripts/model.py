@@ -24,10 +24,10 @@ class VisualIKDNet(nn.Module):
 
         self.visual_encoder = nn.Sequential(
              nn.Conv2d(3, 16, kernel_size=3, stride=2),
-             nn.BatchNorm2d(16), nn.PReLU(), # 31x31
+              nn.PReLU(), # 31x31
              nn.MaxPool2d(kernel_size=3, stride=2), # 15x15
              nn.Conv2d(16, 32, kernel_size=3, stride=2),
-             nn.BatchNorm2d(32), nn.PReLU(), # 7x7
+              nn.PReLU(), # 7x7
              nn.MaxPool2d(kernel_size=3, stride=2), # 3x3
              nn.Flatten(),
              nn.Linear(3*3*32, 64), nn.PReLU(),
@@ -35,14 +35,14 @@ class VisualIKDNet(nn.Module):
         )
         
         self.imu_net = nn.Sequential(
-            nn.Linear(200 * 3 + 60 * 3, 128), nn.BatchNorm1d(128), nn.PReLU(),
+            nn.Linear(200 * 3 + 60 * 3, 128), nn.PReLU(),
             nn.Linear(128, 64), nn.PReLU(),
             nn.Linear(64, 16),
         )
 
         self.ikdmodel = nn.Sequential(
-            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16 + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16 + 16, hidden_size), nn.PReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
         )
@@ -60,13 +60,13 @@ class SimpleIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
         super(SimpleIKDNet, self).__init__()
         self.imu_net = nn.Sequential(
-            nn.Linear(200*3 + 60 * 3, 128), nn.BatchNorm1d(128), nn.PReLU(),
+            nn.Linear(200*3 + 60 * 3, 128), nn.PReLU(),
             nn.Linear(128, 64), nn.PReLU(),
             nn.Linear(64, 16),
         )
         self.ikdmodel = nn.Sequential(
-            nn.Linear(input_size - (200*3 + 60 * 3) + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+            nn.Linear(input_size - (200*3 + 60 * 3) + 16, hidden_size), nn.PReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
         )
