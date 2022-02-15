@@ -11,7 +11,7 @@ from sklearn.cluster import KMeans
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', default='/home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/ahg_indoor_bags')
-parser.add_argument('--dataset_names', nargs='+', default=['train18'])
+parser.add_argument('--dataset_names', nargs='+', default=['train2'])
 parser.add_argument('--visualize', action='store_true', default=False)
 parser.add_argument('--num_threads', type=int, default=10)
 args = parser.parse_args()
