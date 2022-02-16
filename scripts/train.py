@@ -76,7 +76,7 @@ class IKDModel(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.ikd_model.parameters(), lr=3e-4, weight_decay=1e-5)
+        return torch.optim.AdamW(self.ikd_model.parameters(), lr=3e-4, weight_decay=0.001)
 
 class ProcessedBagDataset(Dataset):
     def __init__(self, data, history_len, use_simple_vision=False):
@@ -105,17 +105,17 @@ class ProcessedBagDataset(Dataset):
         for i in range(1, 20):
             errors_v.append(np.linalg.norm(data['joystick'][:-i, 0] - data['odom'][i:, 0]))
             errors_w.append(np.linalg.norm(data['joystick'][:-i, 1] - data['odom'][i:, 2]))
-        self.fwd_vel_min = np.argmin(errors_v)
-        self.ang_vel_min = np.argmin(errors_w)
+        self.fwd_vel_delay = np.argmin(errors_v)
+        self.ang_vel_delay = np.argmin(errors_w)
 
     def __len__(self):
-        return max(self.data['odom'].shape[0]-max(self.fwd_vel_min, self.ang_vel_min), 0)
+        return max(self.data['odom'].shape[0]-max(self.fwd_vel_delay, self.ang_vel_delay), 0)
 
     def __getitem__(self, idx):
         # history of odoms + next state
         odom_curr = self.data['odom'][idx][:3]
-        odom_fwd_next = self.data['odom'][idx+self.fwd_vel_min][:3]
-        odom_ang_next = self.data['odom'][idx+self.ang_vel_min][:3]
+        odom_fwd_next = self.data['odom'][idx+self.fwd_vel_delay][:3]
+        odom_ang_next = self.data['odom'][idx+self.ang_vel_delay][:3]
 
         odom_val = np.hstack((odom_curr,
                               odom_fwd_next[0],
