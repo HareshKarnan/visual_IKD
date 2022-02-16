@@ -30,13 +30,13 @@ class VisualIKDNet(nn.Module):
              nn.BatchNorm2d(32), nn.PReLU(), # 7x7
              nn.MaxPool2d(kernel_size=3, stride=2), # 3x3
              nn.Flatten(),
-             nn.Linear(3*3*32, 64), nn.PReLU(),
+             nn.Linear(3*3*32, 64), nn.BatchNorm1d(64), nn.PReLU(),
              nn.Linear(64, 16)
         )
         
         self.imu_net = nn.Sequential(
             nn.Linear(200 * 3 + 60 * 3, 128), nn.BatchNorm1d(128), nn.PReLU(),
-            nn.Linear(128, 64), nn.PReLU(),
+            nn.Linear(128, 64), nn.BatchNorm1d(64), nn.PReLU(),
             nn.Linear(64, 16),
         )
 
@@ -61,7 +61,7 @@ class SimpleIKDNet(nn.Module):
         super(SimpleIKDNet, self).__init__()
         self.imu_net = nn.Sequential(
             nn.Linear(200*3 + 60 * 3, 128), nn.BatchNorm1d(128), nn.PReLU(),
-            nn.Linear(128, 64), nn.PReLU(),
+            nn.Linear(128, 64), nn.BatchNorm1d(64), nn.PReLU(),
             nn.Linear(64, 16),
         )
         self.ikdmodel = nn.Sequential(

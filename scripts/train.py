@@ -82,6 +82,8 @@ class ProcessedBagDataset(Dataset):
         self.data = data
         self.history_len = history_len
         self.use_simple_vision = use_simple_vision
+        if self.use_simple_vision:
+            cprint('Using simple vision !', 'green', attrs=['bold'])
 
         self.data['odom'] = np.asarray(self.data['odom'])
         self.data['joystick'] = np.asarray(self.data['joystick'])
