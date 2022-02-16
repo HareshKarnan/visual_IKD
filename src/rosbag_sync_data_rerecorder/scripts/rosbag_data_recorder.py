@@ -47,8 +47,8 @@ class ListenRecordData:
         odom = message_filters.Subscriber('/camera/odom/sample', Odometry)
         joystick = message_filters.Subscriber('/joystick', Joy)
         # vesc_drive = message_filters.Subscriber('/vesc_drive', TwistStamped)
-        sensor_core = message_filters.Subscriber('/sensors/core', VescStateStamped)
-        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu, sensor_core], 10, 0.1, allow_headerless=True)
+        # sensor_core = message_filters.Subscriber('/sensors/core', VescStateStamped)
+        ts = message_filters.ApproximateTimeSynchronizer([image, odom, joystick, vectornavimu], 10, 0.1, allow_headerless=True)
         ts.registerCallback(self.callback)
         self.batch_idx = 0
         self.counter = 0
@@ -69,13 +69,13 @@ class ListenRecordData:
             'gyro_msg': [],
             'vectornav': [],
             # 'vesc_drive_msg': [],
-            'sensor_core_msg': []
+            # 'sensor_core_msg': []
         }
 
         self.open_thread_lists = []
 
 
-    def callback(self, image, odom, joystick, vectornavimu, sensor_core):
+    def callback(self, image, odom, joystick, vectornavimu):
         print('Received messages :: ', self.counter, ' ___')
     
         self.msg_data['image_msg'].append(image)
@@ -86,7 +86,7 @@ class ListenRecordData:
         self.msg_data['accel_msg'].append(self.accel_msgs.flatten())
         self.msg_data['gyro_msg'].append(self.gyro_msgs.flatten())
         # self.msg_data['vesc_drive_msg'].append(vesc_drive)
-        self.msg_data['sensor_core_msg'].append(sensor_core)
+        # self.msg_data['sensor_core_msg'].append(sensor_core)
         self.counter += 1
 
     def odom_callback(self, msg):
@@ -109,7 +109,7 @@ class ListenRecordData:
         data = {}
 
         # valid or invalid data bool
-        data['vesc_faults'] = self.extract_vesc_faults(msg_data)
+        # data['vesc_faults'] = self.extract_vesc_faults(msg_data)
 
         # process joystick
         print('Processing joystick data')
