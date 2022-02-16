@@ -12,6 +12,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from datetime import datetime
 import cv2
+import matplotlib.pyplot as plt
 
 
 class IKDModel(pl.LightningModule):
@@ -98,28 +99,27 @@ class ProcessedBagDataset(Dataset):
             joystick_history = joystick_history[1:] + [data['joystick'][i]]
             self.data['joystick_1sec_history'].append(joystick_history)
 
-        # self.data['joystick'][:, 0] = self.data['joystick'][:, 0] - self.data['odom'][:, 0]
-        # self.data['joystick'][:, 1] = self.data['joystick'][:, 1] - self.data['odom'][:, 2]
-
-        # odom_mean = np.mean(self.data['odom'], axis=0)
-        # odom_std = np.std(self.data['odom'], axis=0)
-        # joy_mean = np.mean(self.data['joystick'], axis=0)
-        # joy_std = np.std(self.data['joystick'], axis=0)
-
-        # self.data['odom'] = (self.data['odom'] - odom_mean) / odom_std
-        # self.data['joystick'] = (self.data['joystick'] - joy_mean) / joy_std
+        # find the delay for this bag
+        self.delay = 0
+        errors_v, errors_w = [], []
+        for i in range(1, 20):
+            errors_v.append(np.linalg.norm(data['joystick'][:-i, 0] - data['odom'][i:, 0]))
+            errors_w.append(np.linalg.norm(data['joystick'][:-i, 1] - data['odom'][i:, 2]))
+        self.fwd_vel_min = np.argmin(errors_v)
+        self.ang_vel_min = np.argmin(errors_w)
 
     def __len__(self):
-        return max(self.data['odom'].shape[0]-6, 0)
+        return max(self.data['odom'].shape[0]-max(self.fwd_vel_min, self.ang_vel_min), 0)
 
     def __getitem__(self, idx):
         # history of odoms + next state
         odom_curr = self.data['odom'][idx][:3]
-        odom_next = self.data['odom'][idx+5][:3]
+        odom_fwd_next = self.data['odom'][idx+self.fwd_vel_min][:3]
+        odom_ang_next = self.data['odom'][idx+self.ang_vel_min][:3]
 
         odom_val = np.hstack((odom_curr,
-                              odom_next[0],
-                              odom_next[2])).flatten()
+                              odom_fwd_next[0],
+                              odom_ang_next[2])).flatten()
 
         # odom_1sec_history = self.data['odom_1sec_msg'][idx]
         accel = self.data['accel_msg'][idx]
