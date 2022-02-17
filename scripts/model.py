@@ -69,7 +69,7 @@ class SimpleIKDNet(nn.Module):
         self.skip = nn.Linear(200*3 + 60 * 3, output_size)
 
         self.ikdmodel = nn.Sequential(
-            nn.Linear(2 + 16, hidden_size), nn.BatchNorm1d(128), nn.PReLU(),
+            nn.Linear(2 + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
