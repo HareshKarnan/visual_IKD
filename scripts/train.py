@@ -36,7 +36,8 @@ class IKDModel(pl.LightningModule):
                                   'hidden_size',
                                   'use_vision')
 
-        self.loss = torch.nn.MSELoss()
+        # self.loss = torch.nn.MSELoss()
+        self.nll_loss = torch.nn.GausianNLLLoss()
 
     def forward(self, accel, gyro, odom, bevimage=None, patch_observed=None, joystick_history=None):
         if self.use_vision:
@@ -51,11 +52,11 @@ class IKDModel(pl.LightningModule):
         if self.use_vision:
             if bevimage is not None:
                 bevimage = bevimage.permute(0, 3, 1, 2).float()
-            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found, joystick_history.float())
+            mean_prediction, var_prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found, joystick_history.float())
         else:
-            prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
+            mean_prediction, var_prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
 
-        loss = self.loss(prediction, joystick.float())
+        loss = self.loss(mean_prediction, joystick.float(), var_prediction)
         self.log('train_loss', loss, prog_bar=True, logger=True)
         return loss
 
@@ -64,11 +65,11 @@ class IKDModel(pl.LightningModule):
         if self.use_vision:
             if bevimage is not None:
                 bevimage = bevimage.permute(0, 3, 1, 2).float()
-            prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found, joystick_history.float())
+            mean_prediction, var_prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found, joystick_history.float())
         else:
-            prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
+            mean_prediction, var_prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
 
-        loss = self.loss(prediction, joystick.float())
+        loss = self.loss(mean_prediction, joystick.float(), var_prediction)
         self.log('val_loss', loss, prog_bar=True, logger=True)
         return loss
 
