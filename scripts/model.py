@@ -53,7 +53,6 @@ class VisualIKDNet(nn.Module):
 
         self.full_skip = nn.Linear(200*3 + 60 * 3, output_size, bias=False)
 
-
     def forward(self, accel, gyro, odom, image, patch_observed):
         visual_embedding = self.visual_encoder(image)
         unobserved_indices = torch.nonzero(torch.logical_not(patch_observed)).squeeze()

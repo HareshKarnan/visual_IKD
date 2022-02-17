@@ -107,8 +107,8 @@ class ProcessedBagDataset(Dataset):
             errors_w.append(np.linalg.norm(data['joystick'][:-i, 1] - data['odom'][i:, 2]))
         self.fwd_vel_delay = np.argmin(errors_v)
         self.ang_vel_delay = np.argmin(errors_w)
-        cprint('Forward velocity delay: {}'.format(self.fwd_vel_delay), 'green', attrs=['bold'])
-        cprint('Angular velocity delay: {}'.format(self.ang_vel_delay), 'green', attrs=['bold'])
+        # cprint('Forward velocity delay: {}'.format(self.fwd_vel_delay), 'green', attrs=['bold'])
+        # cprint('Angular velocity delay: {}'.format(self.ang_vel_delay), 'green', attrs=['bold'])
 
     def __len__(self):
         return max(self.data['odom'].shape[0]-max(self.fwd_vel_delay, self.ang_vel_delay), 0)

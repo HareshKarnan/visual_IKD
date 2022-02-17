@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # run a loop from 1 to 10
-for i in {7..7}
+for i in {13..28}
 do
   echo "processing rosbag train$i.bag"
   rm /home/haresh/PycharmProjects/visual_IKD/src/rosbag_sync_data_rerecorder/data/outdoor_bags/train$i_data/*
