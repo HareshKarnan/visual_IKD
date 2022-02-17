@@ -56,7 +56,7 @@ class IKDModel(pl.LightningModule):
         else:
             mean_prediction, var_prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
 
-        loss = self.loss(mean_prediction, joystick.float(), var_prediction)
+        loss = self.nll_loss(mean_prediction, joystick.float(), var_prediction)
         self.log('train_loss', loss, prog_bar=True, logger=True)
         return loss
 
@@ -69,7 +69,7 @@ class IKDModel(pl.LightningModule):
         else:
             mean_prediction, var_prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
 
-        loss = self.loss(mean_prediction, joystick.float(), var_prediction)
+        loss = self.nll_loss(mean_prediction, joystick.float(), var_prediction)
         self.log('val_loss', loss, prog_bar=True, logger=True)
         return loss
 
