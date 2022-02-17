@@ -37,7 +37,7 @@ class IKDModel(pl.LightningModule):
                                   'use_vision')
 
         # self.loss = torch.nn.MSELoss()
-        self.nll_loss = torch.nn.GausianNLLLoss()
+        self.nll_loss = torch.nn.GaussianNLLLoss()
 
     def forward(self, accel, gyro, odom, bevimage=None, patch_observed=None, joystick_history=None):
         if self.use_vision:
