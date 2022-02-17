@@ -216,8 +216,8 @@ if __name__ == '__main__':
                          log_every_n_steps=10,
                          distributed_backend='ddp',
                          num_sanity_val_steps=-1,
-                         stochastic_weight_avg=True,
-                         gradient_clip_val=0.5,
+                         # stochastic_weight_avg=True,
+                         # gradient_clip_val=0.5,
                          logger=True,
                          )
 

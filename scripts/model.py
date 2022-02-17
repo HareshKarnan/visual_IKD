@@ -41,7 +41,7 @@ class VisualIKDNet(nn.Module):
         )
 
         self.ikdmodel = nn.Sequential(
-            nn.Linear(input_size - (200 * 3 + 60 * 3) + 16 + 16, hidden_size), nn.PReLU(),
+            nn.Linear(2 + 16 + 16, hidden_size), nn.PReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Dropout(0.1),
@@ -69,7 +69,7 @@ class SimpleIKDNet(nn.Module):
             nn.Linear(64, 16),
         )
         self.ikdmodel = nn.Sequential(
-            nn.Linear(input_size - (200*3 + 60 * 3) + 16, hidden_size), nn.PReLU(),
+            nn.Linear(2 + 16, hidden_size), nn.PReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Dropout(0.1),
