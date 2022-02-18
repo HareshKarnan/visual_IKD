@@ -198,7 +198,7 @@ if __name__ == '__main__':
         args.train_dataset_names = ['train1_data', 'train3_data', 'train5_data','train7_data', 'train9_data',
                                     'train11_data', 'train12_data','train14_data', 'train16_data', 'train18_data',
                                     'train20_data', 'train21_data', 'train22_data']
-        args.val_dataset_names = ['train2_data', 'train4_data', 'train6_data', 'train8_data' 'train10_data',
+        args.val_dataset_names = ['train2_data', 'train4_data', 'train6_data', 'train8_data', 'train10_data',
                                   'train13_data', 'train15_data', 'train17_data', 'train19_data']
     elif args.indoor_model:
         cprint('Training indoor model', 'green', attrs=['bold'])
