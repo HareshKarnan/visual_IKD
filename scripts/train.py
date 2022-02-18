@@ -200,6 +200,7 @@ if __name__ == '__main__':
                                     'train20_data', 'train21_data', 'train22_data']
         args.val_dataset_names = ['train2_data', 'train4_data', 'train6_data', 'train8_data', 'train10_data',
                                   'train13_data', 'train15_data', 'train17_data', 'train19_data']
+        model_name = "outdoor_model"
     elif args.indoor_model:
         cprint('Training indoor model', 'green', attrs=['bold'])
         args.train_dataset_names = ['train1_data', 'train3_data', 'train5_data', 'train7_data', 'train9_data',
@@ -207,6 +208,7 @@ if __name__ == '__main__':
                                     'train17_data', 'train18_data', 'train20_data', 'train22_data']
         args.val_dataset_names = ['train2_data', 'train4_data', 'train6_data', 'train8_data', 'train10_data',
                                   'train13_data', 'train15_data', 'train17_data', 'train19_data']
+        model_name = "indoor_model"
     else:
         raise Exception('Please specify whether to train with outdoor or indoor data')
 
@@ -223,7 +225,7 @@ if __name__ == '__main__':
     early_stopping_cb = EarlyStopping(monitor='val_loss', mode='min', min_delta=0.00, patience=100)
 
     model_checkpoint_cb = ModelCheckpoint(dirpath='models/',
-                                          filename=datetime.now().strftime("%d-%m-%Y-%H-%M-%S"),
+                                          filename=datetime.now().strftime("%d-%m-%Y-%H-%M-%S") + '_' + model_name,
                                           monitor='val_loss', verbose=True)
 
     print("Training model...")
