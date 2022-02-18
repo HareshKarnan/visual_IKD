@@ -54,7 +54,7 @@ class VisualIKDNet(nn.Module):
     def forward(self, accel, gyro, odom, image, patch_observed):
         visual_embedding = self.visual_encoder(image)
         unobserved_indices = torch.nonzero(torch.logical_not(patch_observed)).squeeze()
-        visual_embedding[unobserved_indices] = torch.zeros((1, 2)).cuda()
+        visual_embedding[unobserved_indices] = torch.zeros((1, 16)).cuda()
         imu_embedding = self.imu_net(torch.cat((accel, gyro), dim=1)) + self.imu_net_skip(torch.cat((accel, gyro), dim=1))
         return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1)) + self.full_skip(torch.cat((accel, gyro), dim=1)) + self.ikdmodel_skip(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
         # return self.ikdmodel(torch.cat((odom, visual_embedding), dim=1))
