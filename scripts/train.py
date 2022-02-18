@@ -212,6 +212,11 @@ if __name__ == '__main__':
     else:
         raise Exception('Please specify whether to train with outdoor or indoor data')
 
+    if args.use_vision:
+        model_name += "_vision"
+    else:
+        model_name += "_imu_only"
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = IKDModel(input_size=3*200 + 60*3 + (2), # odom_1sec_history + odom_curr + odom_next
