@@ -29,7 +29,7 @@ class VisualIKDNet(nn.Module):
              nn.MaxPool2d(kernel_size=3, stride=2), # 3x3
              nn.Flatten(),
              nn.Linear(3*3*32, 64), nn.PReLU(),
-             nn.Linear(64, 2)
+             nn.Linear(64, 16)
         )
         
         self.imu_net = nn.Sequential(
@@ -40,14 +40,14 @@ class VisualIKDNet(nn.Module):
         self.imu_net_skip = nn.Linear(200 * 3 + 60 * 3, 2, bias=False)
 
         self.ikdmodel = nn.Sequential(
-            nn.Linear(2 + 2 + 2, hidden_size), nn.PReLU(),
+            nn.Linear(2 + 2 + 16, hidden_size), nn.PReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_size, hidden_size), nn.PReLU(),
             nn.Linear(hidden_size, output_size),
         )
-        self.ikdmodel_skip = nn.Linear(2 + 2 + 2, output_size, bias=False)
+        self.ikdmodel_skip = nn.Linear(2 + 2 + 16, output_size, bias=False)
 
         self.full_skip = nn.Linear(200*3 + 60 * 3, output_size, bias=False)
 
