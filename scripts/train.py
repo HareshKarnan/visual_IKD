@@ -193,6 +193,23 @@ if __name__ == '__main__':
     # get the arguments
     args = get_args()
 
+    if args.outdoor_model:
+        cprint('Training outdoor model', 'green', attrs=['bold'])
+        args.train_dataset_names = ['train1_data', 'train3_data', 'train5_data','train7_data', 'train9_data',
+                                    'train11_data', 'train12_data','train14_data', 'train16_data', 'train18_data',
+                                    'train20_data', 'train21_data', 'train22_data']
+        args.val_dataset_names = ['train2_data', 'train4_data', 'train6_data', 'train8_data' 'train10_data',
+                                  'train13_data', 'train15_data', 'train17_data', 'train19_data']
+    elif args.indoor_model:
+        cprint('Training indoor model', 'green', attrs=['bold'])
+        args.train_dataset_names = ['train1_data', 'train3_data', 'train5_data', 'train7_data', 'train9_data',
+                                    'train10_data', 'train11_data', 'train13_data', 'train14_data', 'train15_data',
+                                    'train17_data', 'train18_data', 'train20_data', 'train22_data']
+        args.val_dataset_names = ['train2_data', 'train4_data', 'train6_data', 'train8_data' 'train10_data',
+                                  'train13_data', 'train15_data', 'train17_data', 'train19_data']
+    else:
+        raise Exception('Please specify whether to train with outdoor or indoor data')
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = IKDModel(input_size=3*200 + 60*3 + (2), # odom_1sec_history + odom_curr + odom_next
