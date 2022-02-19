@@ -39,28 +39,22 @@ class VisualIKDNet(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(256, 16),
         )
-        self.imu_net_skip = nn.Linear(200 * 3 + 60 * 3, 16, bias=False)
 
         self.ikdmodel = nn.Sequential(
             nn.Linear(2 + 16 + 32, hidden_size), nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size),
         )
-        self.ikdmodel_skip = nn.Linear(2 + 16 + 32, output_size, bias=False)
 
-        self.full_skip = nn.Linear(200*3 + 60 * 3, output_size, bias=False)
 
     def forward(self, accel, gyro, odom, image, patch_observed):
         visual_embedding = self.visual_encoder(image)
         unobserved_indices = torch.nonzero(torch.logical_not(patch_observed)).squeeze()
         visual_embedding[unobserved_indices] = torch.zeros((1, 32)).cuda()
-        imu_embedding = self.imu_net(torch.cat((accel, gyro), dim=1)) + self.imu_net_skip(torch.cat((accel, gyro), dim=1))
-        return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1)) + self.full_skip(torch.cat((accel, gyro), dim=1)) + self.ikdmodel_skip(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
-        # return self.ikdmodel(torch.cat((odom, visual_embedding), dim=1))
-
+        imu_embedding = self.imu_net(torch.cat((accel, gyro), dim=1))
+        return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
 
 class SimpleIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
@@ -72,21 +66,16 @@ class SimpleIKDNet(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(256, 16),
         )
-        self.imu_net_skip = nn.Linear(200*3 + 60 * 3, 16, bias=False)
-
-        self.full_skip = nn.Linear(200*3 + 60 * 3, output_size, bias=False)
 
         self.ikdmodel = nn.Sequential(
             nn.Linear(2 + 16, hidden_size), nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size),
         )
-        self.ikdmodel_skip = nn.Linear(2 + 16, output_size, bias=False)
 
     def forward(self, accel, gyro, odom):
         accel_gyro = torch.cat((accel, gyro), dim=1)
-        imu_embedding = self.imu_net(accel_gyro) + self.imu_net_skip(accel_gyro)
-        return self.ikdmodel(torch.cat((odom, imu_embedding), dim=1)) + self.full_skip(accel_gyro) + self.ikdmodel_skip(torch.cat((odom, imu_embedding), dim=1))
+        imu_embedding = self.imu_net(accel_gyro)
+        return self.ikdmodel(torch.cat((odom, imu_embedding), dim=1))
