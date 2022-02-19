@@ -36,7 +36,6 @@ class VisualIKDNet(nn.Module):
             nn.Linear(200 * 3 + 60 * 3, 256), nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(256, 256), nn.ReLU(),
-            nn.Dropout(0.1),
             nn.Linear(256, 16),
         )
 
@@ -44,7 +43,6 @@ class VisualIKDNet(nn.Module):
             nn.Linear(2 + 16 + 32, hidden_size), nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
-            nn.Dropout(0.1),
             nn.Linear(hidden_size, output_size),
         )
 
@@ -63,7 +61,6 @@ class SimpleIKDNet(nn.Module):
             nn.Linear(200*3 + 60 * 3, 256), nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(256, 256), nn.ReLU(),
-            nn.Dropout(0.1),
             nn.Linear(256, 16),
         )
 
@@ -71,7 +68,6 @@ class SimpleIKDNet(nn.Module):
             nn.Linear(2 + 16, hidden_size), nn.ReLU(),
             nn.Dropout(0.1),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
-            nn.Dropout(0.1),
             nn.Linear(hidden_size, output_size),
         )
 
