@@ -76,7 +76,7 @@ class IKDModel(pl.LightningModule):
         return self.validation_step(batch, batch_idx)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.ikd_model.parameters(), lr=1e-5, weight_decay=1e-5)
+        return torch.optim.Adam(self.ikd_model.parameters(), lr=3e-4, weight_decay=0.001)
 
 class ProcessedBagDataset(Dataset):
     def __init__(self, data, history_len, use_simple_vision=False):
