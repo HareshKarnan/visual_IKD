@@ -23,26 +23,24 @@ class VisualIKDNet(nn.Module):
         # )
 
         self.visual_encoder = nn.Sequential(
-             nn.Conv2d(3, 16, kernel_size=3, stride=2, bias=False), nn.PReLU(), # 31x31
+             nn.Conv2d(3, 16, kernel_size=3, stride=2, bias=False), nn.BatchNorm2d(16), nn.PReLU(), # 31x31
              nn.MaxPool2d(kernel_size=3, stride=2), # 15x15
-             nn.Conv2d(16, 32, kernel_size=3, stride=2, bias=False), nn.PReLU(), # 7x7
+             nn.Conv2d(16, 32, kernel_size=3, stride=2, bias=False), nn.BatchNorm2d(32), nn.PReLU(), # 7x7
              nn.MaxPool2d(kernel_size=3, stride=2), # 3x3
-             nn.Flatten(), nn.Dropout(0.1),
-             nn.Linear(3*3*32, 64), nn.ReLU(),
+             nn.Flatten(),
+             nn.Linear(3*3*32, 64), nn.BatchNorm1d(64), nn.ReLU(),
              nn.Linear(64, 32)
         )
         
         self.imu_net = nn.Sequential(
-            nn.Linear(200 * 3 + 60 * 3, 256), nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(256, 256), nn.ReLU(),
+            nn.Linear(200 * 3 + 60 * 3, 256), nn.BatchNorm1d(256), nn.ReLU(),
+            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 16),
         )
 
         self.ikdmodel = nn.Sequential(
-            nn.Linear(2 + 16 + 32, hidden_size), nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+            nn.Linear(2 + 16 + 32, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size),
         )
@@ -61,16 +59,14 @@ class SimpleIKDNet(nn.Module):
     def __init__(self, input_size, output_size, hidden_size=32):
         super(SimpleIKDNet, self).__init__()
         self.imu_net = nn.Sequential(
-            nn.Linear(200*3 + 60 * 3, 256), nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(256, 256), nn.ReLU(),
+            nn.Linear(200*3 + 60 * 3, 256), nn.BatchNorm1d(256), nn.ReLU(),
+            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 16),
         )
 
         self.ikdmodel = nn.Sequential(
-            nn.Linear(2 + 16, hidden_size), nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(hidden_size, hidden_size), nn.ReLU(),
+            nn.Linear(2 + 16, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size),
         )
