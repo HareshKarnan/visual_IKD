@@ -210,8 +210,8 @@ if __name__ == '__main__':
         model_name = "outdoor_model"
     elif args.indoor_model:
         cprint('Training indoor model', 'green', attrs=['bold'])
-        args.train_dataset_names = ['train1_data', 'train3_data', 'train5_data', 'train6_data', 'train7_data', 'train9_data']
-        args.val_dataset_names = ['train2_data', 'train4_data', 'train8_data', 'train10_data']
+        args.train_dataset_names = ['train1_data', 'train3_data', 'train5_data', 'train6_data', 'train8_data']
+        args.val_dataset_names = ['train2_data', 'train4_data', 'train7_data']
 
         model_name = "indoor_model"
     else:
