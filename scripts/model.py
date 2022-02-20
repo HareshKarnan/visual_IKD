@@ -83,7 +83,7 @@ class SimpleIKDNet(nn.Module):
 
         self.ikdmodel_skip = nn.Linear(2 + 4, output_size)
 
-        self.full_skip = nn.Linear(200*2 + 60 * 3, output_size)
+        self.full_skip = nn.Linear(200*3 + 60 * 3, output_size)
 
     def forward(self, accel, gyro, odom):
         accel_gyro = torch.cat((accel, gyro), dim=1)
