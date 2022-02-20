@@ -23,12 +23,12 @@ class VisualIKDNet(nn.Module):
         # )
 
         self.visual_encoder = nn.Sequential(
-             nn.Conv2d(3, 16, kernel_size=3, stride=2, bias=False), nn.BatchNorm2d(16), nn.PReLU(), # 31x31
+             nn.Conv2d(3, 16, kernel_size=3, stride=2), nn.BatchNorm2d(16), nn.PReLU(), # 31x31
              nn.MaxPool2d(kernel_size=3, stride=2), # 15x15
-             nn.Conv2d(16, 32, kernel_size=3, stride=2, bias=False), nn.BatchNorm2d(32), nn.PReLU(), # 7x7
+             nn.Conv2d(16, 32, kernel_size=3, stride=2), nn.BatchNorm2d(32), nn.PReLU(), # 7x7
              nn.MaxPool2d(kernel_size=3, stride=2), # 3x3
              nn.Flatten(),
-             nn.Linear(3*3*32, 4)
+             nn.Linear(3*3*32, 8)
         )
         
         self.imu_net = nn.Sequential(
@@ -39,18 +39,18 @@ class VisualIKDNet(nn.Module):
         self.imu_skip = nn.Linear(200 * 3 + 60 * 3, 4)
 
         self.ikdmodel = nn.Sequential(
-            nn.Linear(2 + 4 + 4, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
+            nn.Linear(2 + 4 + 8, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size),
         )
 
-        self.ikdmodel_skip = nn.Linear(2 + 4 + 4, output_size)
+        self.ikdmodel_skip = nn.Linear(2 + 4 + 8, output_size)
 
     def forward(self, accel, gyro, odom, image, patch_observed):
         visual_embedding = self.visual_encoder(image)
         unobserved_indices = torch.nonzero(torch.logical_not(patch_observed)).squeeze()
-        visual_embedding[unobserved_indices] = torch.zeros((1, 4)).cuda()
+        visual_embedding[unobserved_indices] = torch.zeros((1, 8)).cuda()
         imu_embedding = self.imu_net(torch.cat((accel, gyro), dim=1)) + self.imu_skip(torch.cat((accel, gyro), dim=1))
         return self.ikdmodel(torch.cat((odom, imu_embedding, visual_embedding), dim=1)) + self.ikdmodel_skip(torch.cat((odom, imu_embedding, visual_embedding), dim=1))
 
