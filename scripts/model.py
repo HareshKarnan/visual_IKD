@@ -36,16 +36,12 @@ class VisualIKDNet(nn.Module):
         self.imu_net = nn.Sequential(
             nn.Linear(200 * 3 + 60 * 3, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
-            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
-            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 4),
         )
         self.imu_skip = nn.Linear(200 * 3 + 60 * 3, 4)
 
         self.ikdmodel = nn.Sequential(
             nn.Linear(2 + 4 + 4, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size),
@@ -66,16 +62,12 @@ class SimpleIKDNet(nn.Module):
         self.imu_net = nn.Sequential(
             nn.Linear(200*3 + 60 * 3, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
-            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
-            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 4),
         )
         self.imu_skip = nn.Linear(200*3 + 60 * 3, 4)
 
         self.ikdmodel = nn.Sequential(
             nn.Linear(2 + 4, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size),
