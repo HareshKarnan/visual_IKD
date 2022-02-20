@@ -117,13 +117,14 @@ class IKDNode(object):
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
             return
 
-        odom_history = np.asarray(data['odom']).flatten()
+        # odom_history = np.asarray(data['odom']).flatten()
         desired_odom = np.array([msg.velocity, msg.velocity * msg.curvature])
 
         # form the input tensors
         accel = torch.tensor(data['accel']).to(device=self.device)
         gyro = torch.tensor(data['gyro']).to(device=self.device)
-        odom_input = np.concatenate((odom_history, desired_odom))
+        # odom_input = np.concatenate((odom_history, desired_odom))
+        odom_input = desired_odom
         odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
 
         # non_visual_input = torch.cat((odom_input, accel, gyro)).to(self.device)
@@ -135,11 +136,14 @@ class IKDNode(object):
 
         # print("desired : ", desired_odom)
         v, w = output.squeeze(0).detach().cpu().numpy()
+
+        v = v + msg.velocity
+        w = w + (msg.velocity * msg.curvature)
         print('time taken in seconds :: ', time.time() - start_time)
 
         print("Received Nav Command : ", msg.velocity, msg.velocity * msg.curvature)
         # print("Output Nav Command : ", v, w)
-        print("Output Nav Command : ", msg.velocity + v, msg.velocity*msg.curvature + w)
+        print("Output Nav Command : ", v, w)
 
         # populate with v and w
         # self.nav_cmd.velocity = msg.velocity + 0.5 * v

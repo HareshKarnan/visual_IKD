@@ -156,9 +156,9 @@ class LiveDataProcessor(object):
 
         # TODO: instead of processing based on img_counter, use the odom distance
         if self.last_img_odom is None or \
-                self.find_displacement_between_odom_msgs(self.latest_odom_msg, self.last_img_odom) > 1.0 or \
+                self.find_displacement_between_odom_msgs(self.latest_odom_msg, self.last_img_odom) > 0.5 or \
                 len(self.history_storage['odom_msg'])<self.patch_history or \
-                self.find_angle_between_odom_msgs(self.latest_odom_msg, self.last_img_odom) > 10.0 :
+                self.find_angle_between_odom_msgs(self.latest_odom_msg, self.last_img_odom) > 5.0 :
             self.history_storage['odom_msg'] = self.history_storage['odom_msg'][-self.patch_history+1:] + [self.latest_odom_msg]
             self.bevimage_tensor = self.camera_imu_homography(self.imu_msg, image)
             bevimage = ((self.bevimage_tensor/255.0).cpu().numpy()*255.0).astype(np.uint8)
@@ -172,7 +172,8 @@ class LiveDataProcessor(object):
         if not self.data_ready:
             print("Waiting for data processor initialization...Are all the necessary sensors running?")
             return
-        odom_input = np.concatenate((self.data['odom'], np.array([msg.velocity, msg.velocity * msg.curvature])))
+        # odom_input = np.concatenate((self.data['odom'], np.array([msg.velocity, msg.velocity * msg.curvature])))
+        odom_input = np.array([msg.velocity, msg.velocity * msg.curvature])
 
         with torch.no_grad():
             odom_input = torch.tensor(odom_input.flatten()).to(device=self.device)
@@ -192,9 +193,10 @@ class LiveDataProcessor(object):
                                 patch.cuda(),
                                 torch.tensor(patch_observed).float().unsqueeze(0))
         v, w = output.squeeze(0).cpu().numpy()
-
-        # print('input v, w : ', msg.velocity, msg.curvature)
-        # print('output v, w : ', v, w/v)
+        v = v + msg.velocity
+        w = w + msg.velocity * msg.curvature
+        print('input v, w : ', msg.velocity, msg.curvature)
+        print('output v, w : ', v, w/v)
 
         self.nav_cmd.velocity = v
         self.nav_cmd.curvature = w / v
