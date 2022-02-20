@@ -34,7 +34,9 @@ class VisualIKDNet(nn.Module):
         
         self.imu_net = nn.Sequential(
             nn.Linear(200 * 3 + 60 * 3, 256), nn.ReLU(),
-            nn.Dropout(0.1),
+            nn.Dropout(0.05),
+            nn.Linear(256, 256), nn.ReLU(),
+            nn.Dropout(0.05),
             nn.Linear(256, 256), nn.ReLU(),
             nn.Linear(256, 4),
         )
