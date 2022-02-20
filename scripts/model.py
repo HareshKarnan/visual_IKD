@@ -28,9 +28,7 @@ class VisualIKDNet(nn.Module):
              nn.Conv2d(16, 32, kernel_size=3, stride=2, bias=False), nn.BatchNorm2d(32), nn.PReLU(), # 7x7
              nn.MaxPool2d(kernel_size=3, stride=2), # 3x3
              nn.Flatten(),
-             nn.Linear(3*3*32, 64), nn.BatchNorm1d(64), nn.ReLU(),
-             nn.Linear(64, 64), nn.BatchNorm1d(64), nn.ReLU(),
-             nn.Linear(64, 4)
+             nn.Linear(3*3*32, 4)
         )
         
         self.imu_net = nn.Sequential(
