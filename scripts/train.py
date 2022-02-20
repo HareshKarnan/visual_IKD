@@ -100,27 +100,24 @@ class ProcessedBagDataset(Dataset):
             self.data['joystick_1sec_history'].append(joystick_history)
 
         # find the delay for this bag
-        # self.delay = 0
-        # errors_v, errors_w = [], []
-        # for i in range(1, 20):
-        #     errors_v.append(np.linalg.norm(data['joystick'][:-i, 0] - data['odom'][i:, 0]))
-        #     errors_w.append(np.linalg.norm(data['joystick'][:-i, 1] - data['odom'][i:, 2]))
-        # self.fwd_vel_delay = np.argmin(errors_v)
-        # self.ang_vel_delay = np.argmin(errors_w)
+        self.delay = 0
+        errors_v, errors_w = [], []
+        for i in range(1, 20):
+            errors_v.append(np.linalg.norm(data['joystick'][:-i, 0] - data['odom'][i:, 0]))
+            errors_w.append(np.linalg.norm(data['joystick'][:-i, 1] - data['odom'][i:, 2]))
+        self.fwd_vel_delay = np.argmin(errors_v)
+        self.ang_vel_delay = np.argmin(errors_w)
         # cprint('Forward velocity delay: {}'.format(self.fwd_vel_delay), 'green', attrs=['bold'])
         # cprint('Angular velocity delay: {}'.format(self.ang_vel_delay), 'green', attrs=['bold'])
 
     def __len__(self):
-        # return max(self.data['odom'].shape[0]-max(self.fwd_vel_delay, self.ang_vel_delay), 0)
-        return max(self.data['odom'].shape[0]-6, 0)
+        return max(self.data['odom'].shape[0]-max(self.fwd_vel_delay, self.ang_vel_delay), 0)
 
     def __getitem__(self, idx):
         # history of odoms + next state
         # odom_curr = self.data['odom'][idx][:3]
-        # odom_fwd_next = self.data['odom'][idx+self.fwd_vel_delay][:3]
-        # odom_ang_next = self.data['odom'][idx+self.ang_vel_delay][:3]
-        odom_fwd_next = self.data['odom'][idx+5][:3]
-        odom_ang_next = self.data['odom'][idx+5][:3]
+        odom_fwd_next = self.data['odom'][idx+self.fwd_vel_delay][:3]
+        odom_ang_next = self.data['odom'][idx+self.ang_vel_delay][:3]
 
         odom_val = np.hstack((odom_fwd_next[0],
                               odom_ang_next[2])).flatten()
