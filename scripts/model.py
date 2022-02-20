@@ -29,17 +29,22 @@ class VisualIKDNet(nn.Module):
              nn.MaxPool2d(kernel_size=3, stride=2), # 3x3
              nn.Flatten(),
              nn.Linear(3*3*32, 64), nn.BatchNorm1d(64), nn.ReLU(),
+             nn.Linear(364, 64), nn.BatchNorm1d(64), nn.ReLU(),
              nn.Linear(64, 4)
         )
         
         self.imu_net = nn.Sequential(
             nn.Linear(200 * 3 + 60 * 3, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
+            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
+            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 4),
         )
 
         self.ikdmodel = nn.Sequential(
             nn.Linear(2 + 4 + 4, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size),
@@ -61,11 +66,15 @@ class SimpleIKDNet(nn.Module):
         self.imu_net = nn.Sequential(
             nn.Linear(200*3 + 60 * 3, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
+            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
+            nn.Linear(256, 256), nn.BatchNorm1d(256), nn.ReLU(),
             nn.Linear(256, 4),
         )
 
         self.ikdmodel = nn.Sequential(
             nn.Linear(2 + 4, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, output_size),
