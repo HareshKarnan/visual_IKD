@@ -88,4 +88,4 @@ class SimpleIKDNet(nn.Module):
     def forward(self, accel, gyro, odom):
         accel_gyro = torch.cat((accel, gyro), dim=1)
         imu_embedding = self.imu_net(accel_gyro) + self.imu_skip(accel_gyro)
-        return self.ikdmodel(torch.cat((odom, imu_embedding), dim=1)) + self.ikdmodel_skip(torch.cat((odom, imu_embedding), dim=1)) + self.full_skip(torch.cat((odom, accel_gyro), dim=1))
+        return self.ikdmodel(torch.cat((odom, imu_embedding), dim=1)) + self.ikdmodel_skip(torch.cat((odom, imu_embedding), dim=1)) + self.full_skip(accel_gyro)
