@@ -210,8 +210,14 @@ if __name__ == '__main__':
         model_name = "outdoor_model"
     elif args.indoor_model:
         cprint('Training indoor model', 'green', attrs=['bold'])
-        args.train_dataset_names = ['train1_data', 'train3_data', 'train5_data', 'train6_data', 'train8_data']
-        args.val_dataset_names = ['train2_data', 'train4_data', 'train7_data']
+        args.train_dataset_names = ['train1_data', 'train3_data', 'train5_data', 'train7_data', 'train9_data',
+                                    'train11_data', 'train13_data', 'train15_data', 'train17_data', 'train19_data',
+                                    'train21_data', 'train23_data', 'train25_data', 'train27_data', 'train29_data',
+                                    'train31_data', 'train33_data']
+        args.val_dataset_names = ['train2_data', 'train4_data', 'train6_data', 'train8_data', 'train10_data',
+                                  'train12_data', 'train14_data', 'train16_data', 'train18_data', 'train20_data',
+                                  'train22_data', 'train24_data', 'train26_data', 'train28_data', 'train30_data',
+                                  'train32_data', 'train34_data']
 
         model_name = "indoor_model"
     else:
