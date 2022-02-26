@@ -194,7 +194,7 @@ class IKDDataModule(pl.LightningDataModule):
         tmp = DataLoader(self.training_dataset, batch_size=1, shuffle=False)
         tmp_joystick_vals = []
         for _, joystick, _, _, _, _, _ in tmp:
-            tmp_joystick_vals.append(joystick)
+            tmp_joystick_vals.append(joystick.detach().numpy())
         joy_mean = np.mean(tmp_joystick_vals, axis=0)
         joy_std = np.std(tmp_joystick_vals, axis=0)
         print('Joystick mean : ', joy_mean)
