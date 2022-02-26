@@ -267,7 +267,7 @@ if __name__ == '__main__':
                      joystick_mean=joy_mean,
                      joystick_std=joy_std)
 
-    model = model.to(device)
+    # model = model.to(device)
 
     early_stopping_cb = EarlyStopping(monitor='val_loss', mode='min', min_delta=0.00, patience=100)
 
