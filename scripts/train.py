@@ -14,6 +14,7 @@ from datetime import datetime
 import cv2
 import matplotlib.pyplot as plt
 
+NORMALIZATION_FACTOR = 4.0
 
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size,
@@ -125,7 +126,7 @@ class ProcessedBagDataset(Dataset):
         # odom_1sec_history = self.data['odom_1sec_msg'][idx]
         accel = self.data['accel_msg'][idx]
         gyro = self.data['gyro_msg'][idx]
-        joystick = self.data['joystick'][idx]
+        joystick = self.data['joystick'][idx]/NORMALIZATION_FACTOR
         joystick_history = np.asarray(self.data['joystick_1sec_history'][idx]).flatten()
 
         if self.use_simple_vision:
