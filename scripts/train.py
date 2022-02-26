@@ -14,16 +14,17 @@ from datetime import datetime
 import cv2
 import matplotlib.pyplot as plt
 
-NORMALIZATION_FACTOR = 4.0
-
 class IKDModel(pl.LightningModule):
     def __init__(self, input_size, output_size,
-                 hidden_size=64, use_vision=False, joystick_norm=None):
+                 hidden_size=64, use_vision=False, joystick_mean=None, joystick_std=None):
         super(IKDModel, self).__init__()
         self.use_vision = use_vision
         cprint('input size :: '+str(input_size), 'green', attrs=['bold'])
 
-        self.joy_mean, self.joy_std = joystick_norm
+        self.joy_mean, self.joy_std = joystick_mean, joystick_std
+
+        self.joy_mean = torch.tensor(self.joy_mean, dtype=torch.float32)
+        self.joy_std = torch.tensor(self.joy_std, dtype=torch.float32)
 
         self.ikd_model = None
         if use_vision:
@@ -38,8 +39,8 @@ class IKDModel(pl.LightningModule):
                                   'output_size',
                                   'hidden_size',
                                   'use_vision',
-                                  'joy_mean',
-                                  'joy_std')
+                                  'joystick_mean',
+                                  'joystick_std')
 
         self.loss = torch.nn.MSELoss()
 
@@ -60,6 +61,9 @@ class IKDModel(pl.LightningModule):
         else:
             prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
 
+        self.joy_mean = self.joy_mean.to(prediction.device)
+        self.joy_std = self.joy_std.to(prediction.device)
+
         joystick_normalized = (joystick.float() - self.joy_mean) / (self.joy_std + 1e-8)
         loss = self.loss(prediction, joystick_normalized)
         self.log('train_loss', loss, prog_bar=True, logger=True)
@@ -73,6 +77,9 @@ class IKDModel(pl.LightningModule):
             prediction = self.forward(accel.float(), gyro.float(), odom.float(), bevimage, patches_found, joystick_history.float())
         else:
             prediction = self.forward(accel.float(), gyro.float(), odom.float(), joystick_history=joystick_history.float())
+
+        self.joy_mean = self.joy_mean.to(prediction.device)
+        self.joy_std = self.joy_std.to(prediction.device)
 
         joystick_normalized = (joystick.float() - self.joy_mean) / (self.joy_std + 1e-8)
         loss = self.loss(prediction, joystick_normalized)
@@ -132,7 +139,7 @@ class ProcessedBagDataset(Dataset):
         # odom_1sec_history = self.data['odom_1sec_msg'][idx]
         accel = self.data['accel_msg'][idx]
         gyro = self.data['gyro_msg'][idx]
-        joystick = self.data['joystick'][idx]/NORMALIZATION_FACTOR
+        joystick = self.data['joystick'][idx]
         joystick_history = np.asarray(self.data['joystick_1sec_history'][idx]).flatten()
 
         if self.use_simple_vision:
@@ -200,7 +207,7 @@ class IKDDataModule(pl.LightningDataModule):
         print('Joystick mean : ', joy_mean)
         print('Joystick std : ', joy_std)
         del tmp, tmp_joystick_vals
-        return joy_mean, joy_std
+        return np.asarray(joy_mean).flatten(), np.asarray(joy_std).flatten()
 
     def train_dataloader(self):
         return DataLoader(self.training_dataset, batch_size=self.batch_size, shuffle=True, num_workers=16,
@@ -252,12 +259,13 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     dm = IKDDataModule(args.data_dir, args.train_dataset_names, args.val_dataset_names, batch_size=args.batch_size, history_len=args.history_len)
-
+    joy_mean, joy_std = dm.get_normalization_factor()
     model = IKDModel(input_size=3*200 + 60*3 + (2), # odom_1sec_history + odom_curr + odom_next
                      output_size=2,
                      hidden_size=args.hidden_size,
                      use_vision=args.use_vision,
-                     joystick_norm=dm.get_normalization_factor()).cuda()
+                     joystick_mean=joy_mean,
+                     joystick_std=joy_std).cuda()
 
     model = model.cuda()
 
