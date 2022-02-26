@@ -265,9 +265,9 @@ if __name__ == '__main__':
                      hidden_size=args.hidden_size,
                      use_vision=args.use_vision,
                      joystick_mean=joy_mean,
-                     joystick_std=joy_std).cuda()
+                     joystick_std=joy_std)
 
-    model = model.cuda()
+    model = model.to(device)
 
     early_stopping_cb = EarlyStopping(monitor='val_loss', mode='min', min_delta=0.00, patience=100)
 
